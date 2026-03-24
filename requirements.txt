@@ -1,6 +1,7 @@
 streamlit>=1.28.0
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch
 transformers
-gramformer
-spacy>=3.0.0
-errant
+sentencepiece
+protobuf
+spacy>=3.0.0,<3.8.0
