@@ -19,7 +19,7 @@ st.set_page_config(
 # ==========================================
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;    800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 
@@ -160,8 +160,7 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
     color:var(--text-primary)!important;
     border:1px solid var(--glass-border)!important}
 
-.sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;
-    margin-top:1.2rem}
+.sgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-top:1.2rem}
 .sc{background:linear-gradient(135deg,rgba(26,26,62,.8),rgba(13,13,43,.9));
     border:1px solid var(--glass-border);border-radius:16px;padding:1.2rem;
     text-align:center;transition:all .3s}
@@ -171,13 +170,10 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 
 .pill{display:inline-flex;align-items:center;gap:.45rem;padding:.4rem 1rem;
     border-radius:50px;font-size:.85rem;font-weight:600}
-.pill-ok{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.25);
-    color:#2ecc71}
-.pill-err{background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);
-    color:#e74c3c}
+.pill-ok{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.25);color:#2ecc71}
+.pill-err{background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);color:#e74c3c}
 .pdot{width:7px;height:7px;border-radius:50%;animation:blink 2s infinite}
-.pill-ok .pdot{background:#2ecc71}
-.pill-err .pdot{background:#e74c3c}
+.pill-ok .pdot{background:#2ecc71}.pill-err .pdot{background:#e74c3c}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
 .divider{border:none;border-top:1px solid var(--glass-border);margin:2rem 0}
@@ -198,8 +194,7 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 .stSelectbox>div>div{
     background:rgba(0,0,0,.3)!important;
     border:2px solid var(--glass-border)!important;
-    border-radius:12px!important;
-    color:var(--text-primary)!important}
+    border-radius:12px!important;color:var(--text-primary)!important}
 
 @media(max-width:768px){
     .topbar{padding:.7rem 1rem}.hero h1{font-size:2rem}
@@ -211,12 +206,12 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 
 
 # ==========================================
-# 3. نماذج التصحيح والترجمة
+# 3. دوال النماذج
 # ==========================================
 
 @st.cache_resource
 def load_corrector():
-    """تحميل نموذج التصحيح النحوي T5"""
+    """تحميل نموذج التصحيح T5"""
     from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
     name = "prithivida/grammar_error_correcter_v1"
     tok = AutoTokenizer.from_pretrained(name)
@@ -225,67 +220,76 @@ def load_corrector():
 
 
 @st.cache_resource
-def load_translator(src, tgt):
+def load_translator(src_code, tgt_code):
     """تحميل نموذج ترجمة Helsinki-NLP"""
     from transformers import pipeline
 
-    names = [
-        f"Helsinki-NLP/opus-mt-{src}-{tgt}",
-        f"Helsinki-NLP/opus-mt-tc-big-{src}-{tgt}",
+    candidates = [
+        "Helsinki-NLP/opus-mt-{}-{}".format(src_code, tgt_code),
+        "Helsinki-NLP/opus-mt-tc-big-{}-{}".format(src_code, tgt_code),
     ]
 
-    for name in names:
+    for name in candidates:
         try:
             pipe = pipeline(
-                "translation", model=name,
-                tokenizer=name, device=-1,
+                "translation",
+                model=name,
+                tokenizer=name,
+                device=-1,
             )
             return pipe, name, None
         except Exception:
             continue
 
-    return None, names[0], f"Model not found for {src}→{tgt}"
+    err_msg = "No model found for {} to {}".format(src_code, tgt_code)
+    return None, candidates[0], err_msg
 
 
-# اللغات المدعومة للترجمة
+# اللغات
 TRANS_LANGS = {
-    "🇸🇦 العربية (Arabic)": "ar",
-    "🇫🇷 الفرنسية (French)": "fr",
-    "🇩🇪 الألمانية (German)": "de",
-    "🇪🇸 الإسبانية (Spanish)": "es",
-    "🇮🇹 الإيطالية (Italian)": "it",
-    "🇵🇹 البرتغالية (Portuguese)": "pt",
-    "🇷🇺 الروسية (Russian)": "ru",
-    "🇹🇷 التركية (Turkish)": "tr",
-    "🇳🇱 الهولندية (Dutch)": "nl",
-    "🇸🇪 السويدية (Swedish)": "sv",
-    "🇨🇳 الصينية (Chinese)": "zh",
-    "🇯🇵 اليابانية (Japanese)": "ja",
+    "🇸🇦 العربية": "ar",
+    "🇫🇷 Français": "fr",
+    "🇩🇪 Deutsch": "de",
+    "🇪🇸 Español": "es",
+    "🇮🇹 Italiano": "it",
+    "🇵🇹 Português": "pt",
+    "🇷🇺 Русский": "ru",
+    "🇹🇷 Türkçe": "tr",
+    "🇳🇱 Nederlands": "nl",
+    "🇸🇪 Svenska": "sv",
+    "🇨🇳 中文": "zh",
+    "🇯🇵 日本語": "ja",
 }
 
 RTL_CODES = {"ar", "he", "fa", "ur"}
 
 
 def correct_text(text, tokenizer, model):
-    """تصحيح نص كامل"""
+    """تصحيح نص كامل جملة بجملة"""
     sents = re.split(r'(?<=[.!?])\s+', text.strip())
     results = []
     for s in sents:
-        if s.strip():
-            try:
-                inp = tokenizer(
-                    "gec: " + s, return_tensors="pt",
-                    max_length=128, truncation=True, padding=True,
-                )
-                out = model.generate(
-                    **inp, max_length=128,
-                    num_beams=5, early_stopping=True,
-                )
-                results.append(
-                    tokenizer.decode(out[0], skip_special_tokens=True)
-                )
-            except Exception:
-                results.append(s)
+        if not s.strip():
+            continue
+        try:
+            inp = tokenizer(
+                "gec: " + s,
+                return_tensors="pt",
+                max_length=128,
+                truncation=True,
+                padding=True,
+            )
+            out = model.generate(
+                **inp,
+                max_length=128,
+                num_beams=5,
+                early_stopping=True,
+            )
+            results.append(
+                tokenizer.decode(out[0], skip_special_tokens=True)
+            )
+        except Exception:
+            results.append(s)
     return " ".join(results)
 
 
@@ -299,12 +303,13 @@ def translate_text(text, translator):
     sents = re.split(r'(?<=[.!?])\s+', text.strip())
     parts = []
     for s in sents:
-        if s.strip():
-            try:
-                r = translator(s, max_length=512, num_beams=4)
-                parts.append(r[0]["translation_text"])
-            except Exception:
-                parts.append(s)
+        if not s.strip():
+            continue
+        try:
+            r = translator(s, max_length=512, num_beams=4)
+            parts.append(r[0]["translation_text"])
+        except Exception:
+            parts.append(s)
     return " ".join(parts)
 
 
@@ -314,16 +319,18 @@ def make_diff(orig, fixed):
     parts = []
     for t in d:
         if t.startswith("- "):
-            parts.append(f'<mark class="err">{t[2:]}</mark>')
+            w = t[2:]
+            parts.append('<mark class="err">' + w + "</mark>")
         elif t.startswith("+ "):
-            parts.append(f'<mark class="fix">{t[2:]}</mark>')
+            w = t[2:]
+            parts.append('<mark class="fix">' + w + "</mark>")
         elif t.startswith("  "):
             parts.append(t[2:])
     return " ".join(parts)
 
 
 # ==========================================
-# 4. الواجهة
+# 4. الواجهة العلوية
 # ==========================================
 
 st.markdown("""
@@ -347,8 +354,8 @@ st.markdown("""
     <div class="hero-chip">🧠 Correct &amp; Translate</div>
     <h1><span class="glow">AI Grammar Corrector</span></h1>
     <p class="hero-desc">
-        صحّح الأخطاء النحوية والإملائية ثم ترجم النص المُصحَّح
-        إلى أي لغة — كل ذلك في مكان واحد
+        Correct English grammar errors then translate the result
+        to any language — all in one place
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -369,27 +376,26 @@ try:
     st.markdown(
         '<div class="pill pill-ok">'
         '<div class="pdot"></div>'
-        'Grammar Model Ready ✓</div>',
+        'Grammar Model Ready</div>',
         unsafe_allow_html=True,
     )
 except Exception as e:
     st.markdown(
         '<div class="pill pill-err">'
         '<div class="pdot"></div>'
-        f'Grammar Model Error</div>',
+        'Grammar Model Error</div>',
         unsafe_allow_html=True,
     )
-    with st.expander("🔍 Details"):
+    with st.expander("Details"):
         st.error(str(e))
 
 
 # ==========================================
-# 6. منطقة التصحيح
+# 6. قسم التصحيح
 # ==========================================
 
 st.markdown('<div class="workzone">', unsafe_allow_html=True)
 
-# نماذج
 EXAMPLES = [
     "Last weak, me and my freind goed to the librery.",
     "She dont knows what happend yestarday.",
@@ -410,10 +416,9 @@ ecols = st.columns(3)
 for i, ex in enumerate(EXAMPLES):
     with ecols[i % 3]:
         short = ex[:32] + "..." if len(ex) > 32 else ex
-        if st.button(short, key=f"ex{i}", use_container_width=True):
+        if st.button(short, key="ex" + str(i), use_container_width=True):
             st.session_state["inp"] = ex
 
-# الإدخال
 st.markdown(
     '<div class="gc"><div class="gc-head">'
     '<div class="gc-title"><div class="gc-ico">✍️</div>'
@@ -438,26 +443,27 @@ user_text = st.text_area(
 )
 
 wc = len(user_text.split()) if user_text.strip() else 0
-st.caption(f"📏 {wc} words · {len(user_text)} chars")
+cc = len(user_text)
+st.caption("📏 " + str(wc) + " words · " + str(cc) + " chars")
 
-# أزرار التصحيح
 b1, b2, b3 = st.columns([3, 1, 1])
 with b1:
     go_correct = st.button(
-        "🚀 Correct with AI", type="primary",
-        use_container_width=True, disabled=not corrector_ok,
+        "🚀 Correct with AI",
+        type="primary",
+        use_container_width=True,
+        disabled=not corrector_ok,
     )
 with b2:
     clr = st.button("🗑️ Clear", use_container_width=True)
 with b3:
-    cpy_corr = st.button("📋 Copy", use_container_width=True, key="cpy1")
+    cpy1 = st.button("📋 Copy", use_container_width=True, key="cpy1")
 
 if clr:
     st.session_state["inp"] = ""
     st.session_state["corrected"] = ""
     st.session_state["translated"] = ""
     st.rerun()
-
 
 # نتيجة التصحيح
 st.markdown(
@@ -468,11 +474,11 @@ st.markdown(
 )
 
 corr_holder = st.empty()
+corrected_text = st.session_state.get("corrected", "")
 
-if "corrected" in st.session_state and st.session_state["corrected"]:
+if corrected_text:
     corr_holder.markdown(
-        f'<div class="rbox rbox-clean">'
-        f'{st.session_state["corrected"]}</div>',
+        '<div class="rbox rbox-clean">' + corrected_text + '</div>',
         unsafe_allow_html=True,
     )
 else:
@@ -482,20 +488,20 @@ else:
         unsafe_allow_html=True,
     )
 
-# التصحيح
 if go_correct:
     if not user_text.strip():
         st.warning("⚠️ Enter text first!")
     else:
         with st.spinner("🧠 Correcting..."):
             t0 = time.time()
-            final = correct_text(user_text, corrector_tok, corrector_mdl)
+            final = correct_text(
+                user_text, corrector_tok, corrector_mdl
+            )
             elapsed = round(time.time() - t0, 2)
 
         st.session_state["corrected"] = final
         st.session_state["translated"] = ""
 
-        # خريطة التعديلات
         diff_html = make_diff(user_text, final)
         st.markdown(
             '<div class="gc-title" style="margin-top:1rem">'
@@ -503,37 +509,45 @@ if go_correct:
             unsafe_allow_html=True,
         )
         st.markdown(
-            f'<div class="rbox rbox-diff">{diff_html}</div>',
+            '<div class="rbox rbox-diff">' + diff_html + '</div>',
             unsafe_allow_html=True,
         )
+
         st.markdown("<br>", unsafe_allow_html=True)
 
         corr_holder.markdown(
-            f'<div class="rbox rbox-clean">{final}</div>',
+            '<div class="rbox rbox-clean">' + final + '</div>',
             unsafe_allow_html=True,
         )
-        st.success(f"✅ Corrected in {elapsed}s!")
 
-        # إحصائيات
+        st.success("✅ Corrected in " + str(elapsed) + "s!")
+
         ow = user_text.split()
         fw = final.split()
-        changes = sum(1 for a, b in zip(ow, fw) if a != b) + abs(len(ow) - len(fw))
+        changes = sum(
+            1 for a, b in zip(ow, fw) if a != b
+        ) + abs(len(ow) - len(fw))
+        num_sents = len(re.split(r'(?<=[.!?])\s+', user_text.strip()))
 
-        st.markdown(f"""
-        <div class="sgrid">
-            <div class="sc"><div class="sc-val">{len(ow)}</div>
-                <div class="sc-lbl">Words</div></div>
-            <div class="sc"><div class="sc-val" style="color:#ff7675">{changes}</div>
-                <div class="sc-lbl">Changes</div></div>
-            <div class="sc"><div class="sc-val" style="color:#55efc4">
-                {len(re.split(r'(?<=[.!?])\\s+', user_text.strip()))}</div>
-                <div class="sc-lbl">Sentences</div></div>
-            <div class="sc"><div class="sc-val" style="color:var(--cyan)">{elapsed}s</div>
-                <div class="sc-lbl">Time</div></div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="sgrid">'
+            '<div class="sc"><div class="sc-val">'
+            + str(len(ow))
+            + '</div><div class="sc-lbl">Words</div></div>'
+            '<div class="sc"><div class="sc-val" style="color:#ff7675">'
+            + str(changes)
+            + '</div><div class="sc-lbl">Changes</div></div>'
+            '<div class="sc"><div class="sc-val" style="color:#55efc4">'
+            + str(num_sents)
+            + '</div><div class="sc-lbl">Sentences</div></div>'
+            '<div class="sc"><div class="sc-val" style="color:var(--cyan)">'
+            + str(elapsed)
+            + 's</div><div class="sc-lbl">Time</div></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
-if cpy_corr:
+if cpy1:
     lr = st.session_state.get("corrected", "")
     if lr:
         st.code(lr, language=None)
@@ -552,41 +566,42 @@ st.markdown(
     '<div class="gc"><div class="gc-head">'
     '<div class="gc-title">'
     '<div class="gc-ico gc-ico-blue">🌍</div>'
-    'ترجمة النص المُصحَّح</div>'
-    '<span class="gc-badge">Translate Corrected Text</span>'
+    'Translate Corrected Text</div>'
+    '<span class="gc-badge">Helsinki-NLP</span>'
     '</div></div>',
     unsafe_allow_html=True,
 )
 
-# هل يوجد نص مصحح؟
 corrected_text = st.session_state.get("corrected", "")
 
 if not corrected_text:
-    st.info("💡 صحّح النص أولاً ثم اختر لغة الترجمة")
-else:
-    # عرض النص المصحح الذي سيُترجم
-    st.markdown(
-        f"**النص الذي سيُترجم:** _{corrected_text[:100]}"
-        f'{"..." if len(corrected_text) > 100 else ""}_'
+    st.info(
+        "💡 Correct the text first, then choose "
+        "a language to translate to."
     )
+else:
+    preview = corrected_text[:100]
+    if len(corrected_text) > 100:
+        preview += "..."
+    st.markdown("**Text to translate:** _" + preview + "_")
 
-    # اختيار اللغة
     col_lang, col_btn = st.columns([3, 2])
 
     with col_lang:
         target_lang = st.selectbox(
-            "ترجم إلى:",
+            "Translate to:",
             list(TRANS_LANGS.keys()),
             index=0,
             key="tgt_lang",
         )
 
     tgt_code = TRANS_LANGS[target_lang]
+    lang_short = target_lang.split("(")[0].strip() if "(" in target_lang else target_lang
 
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
         go_translate = st.button(
-            f"🌍 ترجم إلى {target_lang.split('(')[0].strip()}",
+            "🌍 Translate to " + lang_short,
             type="primary",
             use_container_width=True,
             key="btn_trans",
@@ -595,27 +610,24 @@ else:
     # نتيجة الترجمة
     trans_holder = st.empty()
 
-    if (
-        "translated" in st.session_state
-        and st.session_state["translated"]
-    ):
+    translated_text = st.session_state.get("translated", "")
+    if translated_text:
         rtl_cls = "rbox-rtl" if tgt_code in RTL_CODES else ""
         trans_holder.markdown(
-            f'<div class="rbox rbox-trans {rtl_cls}">'
-            f'{st.session_state["translated"]}</div>',
+            '<div class="rbox rbox-trans ' + rtl_cls + '">'
+            + translated_text + '</div>',
             unsafe_allow_html=True,
         )
 
-    # الترجمة
     if go_translate:
-        with st.spinner(f"🌍 Translating to {target_lang}..."):
+        with st.spinner("🌍 Loading translation model..."):
             try:
                 translator, used_model, err = load_translator(
                     "en", tgt_code
                 )
 
                 if translator is None:
-                    st.error(f"❌ {err}")
+                    st.error("❌ " + str(err))
                 else:
                     t0 = time.time()
                     translated = translate_text(
@@ -627,51 +639,53 @@ else:
 
                     rtl_cls = "rbox-rtl" if tgt_code in RTL_CODES else ""
                     trans_holder.markdown(
-                        f'<div class="rbox rbox-trans {rtl_cls}">'
-                        f'{translated}</div>',
+                        '<div class="rbox rbox-trans ' + rtl_cls + '">'
+                        + translated + '</div>',
                         unsafe_allow_html=True,
                     )
 
                     st.success(
-                        f"✅ Translated in {elapsed}s "
-                        f"using `{used_model}`"
+                        "✅ Translated in " + str(elapsed)
+                        + "s using " + used_model
                     )
 
-                    # إحصائيات
-                    st.markdown(f"""
-                    <div class="sgrid">
-                        <div class="sc">
-                            <div class="sc-val">{len(corrected_text.split())}</div>
-                            <div class="sc-lbl">Source Words</div></div>
-                        <div class="sc">
-                            <div class="sc-val" style="color:var(--cyan)">
-                                {len(translated.split())}</div>
-                            <div class="sc-lbl">Translated Words</div></div>
-                        <div class="sc">
-                            <div class="sc-val" style="color:#a855f7">
-                                {tgt_code.upper()}</div>
-                            <div class="sc-lbl">Language</div></div>
-                        <div class="sc">
-                            <div class="sc-val" style="color:var(--green)">
-                                {elapsed}s</div>
-                            <div class="sc-lbl">Time</div></div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    src_wc = str(len(corrected_text.split()))
+                    tgt_wc = str(len(translated.split()))
+                    lang_up = tgt_code.upper()
+
+                    st.markdown(
+                        '<div class="sgrid">'
+                        '<div class="sc"><div class="sc-val">'
+                        + src_wc
+                        + '</div><div class="sc-lbl">Source Words</div></div>'
+                        '<div class="sc"><div class="sc-val" style="color:var(--cyan)">'
+                        + tgt_wc
+                        + '</div><div class="sc-lbl">Translated</div></div>'
+                        '<div class="sc"><div class="sc-val" style="color:#a855f7">'
+                        + lang_up
+                        + '</div><div class="sc-lbl">Language</div></div>'
+                        '<div class="sc"><div class="sc-val" style="color:var(--green)">'
+                        + str(elapsed)
+                        + 's</div><div class="sc-lbl">Time</div></div>'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
 
             except Exception as e:
-                st.error(f"❌ Translation error: {e}")
+                st.error("❌ Translation error: " + str(e))
 
-    # نسخ الترجمة
-    cpy_trans = st.button(
-        "📋 نسخ الترجمة", use_container_width=True, key="cpy2"
+    cpy2 = st.button(
+        "📋 Copy Translation",
+        use_container_width=True,
+        key="cpy2",
     )
-    if cpy_trans:
+    if cpy2:
         tr = st.session_state.get("translated", "")
         if tr:
             st.code(tr, language=None)
-            st.info("📋 حدّد وانسخ Ctrl+C")
+            st.info("📋 Select and copy Ctrl+C")
         else:
-            st.warning("⚠️ لا توجد ترجمة")
+            st.warning("⚠️ No translation yet")
 
 
 # ==========================================
@@ -681,23 +695,23 @@ else:
 st.markdown("""
 <div class="fgrid">
     <div class="fc"><div class="fc-ico">🧠</div>
-        <div class="fc-ttl">تصحيح ذكي</div>
-        <div class="fc-dsc">نموذج T5 يفهم السياق ويصحح الأخطاء</div></div>
+        <div class="fc-ttl">Smart Correction</div>
+        <div class="fc-dsc">T5 model understands context</div></div>
     <div class="fc"><div class="fc-ico">🌍</div>
-        <div class="fc-ttl">ترجمة فورية</div>
-        <div class="fc-dsc">ترجم النص المصحح إلى 12+ لغة</div></div>
+        <div class="fc-ttl">12+ Languages</div>
+        <div class="fc-dsc">Translate to Arabic, French, German...</div></div>
     <div class="fc"><div class="fc-ico">🔍</div>
-        <div class="fc-ttl">خريطة التعديلات</div>
-        <div class="fc-dsc">شاهد كل تغيير بالألوان</div></div>
+        <div class="fc-ttl">Visual Diff</div>
+        <div class="fc-dsc">See every change highlighted</div></div>
     <div class="fc"><div class="fc-ico">⚡</div>
-        <div class="fc-ttl">سريع</div>
-        <div class="fc-dsc">تصحيح وترجمة في ثوانٍ</div></div>
+        <div class="fc-ttl">Fast</div>
+        <div class="fc-dsc">Correct and translate in seconds</div></div>
     <div class="fc"><div class="fc-ico">📊</div>
-        <div class="fc-ttl">إحصائيات</div>
-        <div class="fc-dsc">كلمات، تغييرات، ووقت</div></div>
+        <div class="fc-ttl">Statistics</div>
+        <div class="fc-dsc">Words, changes, and timing</div></div>
     <div class="fc"><div class="fc-ico">🆓</div>
-        <div class="fc-ttl">مجاني</div>
-        <div class="fc-dsc">بدون حدود أو تسجيل</div></div>
+        <div class="fc-ttl">Free Forever</div>
+        <div class="fc-dsc">No limits, no sign-up</div></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -712,8 +726,8 @@ st.markdown("""
 <div class="appfoot">
     <div class="af-brand">🤖 Grammar AI + 🌍 Translator</div>
     <div class="af-txt">
-        T5 Grammar Correction + Helsinki-NLP Translation<br>
-        Made with ❤️
+        T5 Correction + Helsinki-NLP Translation<br>
+        Made with love
     </div>
 </div>
 """, unsafe_allow_html=True)
