@@ -15,11 +15,35 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. CSS
+# 2. تثبيت المكتبات المطلوبة تلقائياً
+# ==========================================
+import subprocess
+
+def install_if_missing(package_name, import_name=None):
+    """تثبيت مكتبة إن لم تكن موجودة"""
+    if import_name is None:
+        import_name = package_name
+    try:
+        __import__(import_name)
+    except ImportError:
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install",
+            package_name, "-q"
+        ])
+
+# ✅ المكتبات الضرورية للترجمة والتصحيح
+install_if_missing("transformers")
+install_if_missing("torch")
+install_if_missing("sentencepiece")
+install_if_missing("sacremoses")
+install_if_missing("protobuf")
+
+# ==========================================
+# 3. CSS
 # ==========================================
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;    800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 
@@ -32,11 +56,15 @@ st.markdown("""
     --glass:rgba(255,255,255,0.03);
     --glass-border:rgba(255,255,255,0.08);
 }
+
 *{font-family:'Tajawal',sans-serif!important}
+
 html,body,[data-testid="stAppViewContainer"]{
     background:var(--dark-1)!important;
     color:var(--text-primary)!important}
+
 .main .block-container{padding:0!important;max-width:100%!important}
+
 #MainMenu,footer,header,
 [data-testid="stHeader"],
 [data-testid="stToolbar"],
@@ -55,6 +83,7 @@ html,body,[data-testid="stAppViewContainer"]{
         linear-gradient(rgba(233,196,106,.02) 1px,transparent 1px),
         linear-gradient(90deg,rgba(233,196,106,.02) 1px,transparent 1px);
     background-size:80px 80px}
+
 @keyframes drift{
     0%,100%{transform:translate(0,0) scale(1)}
     33%{transform:translate(50px,-60px) scale(1.08)}
@@ -90,6 +119,7 @@ html,body,[data-testid="stAppViewContainer"]{
 
 .workzone{position:relative;z-index:1;max-width:1000px;margin:0 auto;
     padding:0 2rem 3rem}
+
 .gc{background:var(--glass);backdrop-filter:blur(20px);
     border:1px solid var(--glass-border);border-radius:22px;
     padding:1.8rem;margin-bottom:1.3rem}
@@ -128,17 +158,21 @@ html,body,[data-testid="stAppViewContainer"]{
         rgba(233,196,106,.04),rgba(168,218,220,.03))}
 .rbox::before{content:'';position:absolute;top:0;left:0;right:0;
     height:3px;border-radius:14px 14px 0 0}
+
 .rbox-diff::before{
     background:linear-gradient(90deg,var(--red),var(--orange),var(--green))}
 .rbox-clean::before{
     background:linear-gradient(90deg,var(--green),var(--cyan))}
 .rbox-clean{color:var(--green);font-weight:500}
+
 .rbox-trans::before{
     background:linear-gradient(90deg,var(--blue),var(--teal))}
 .rbox-trans{color:var(--cyan);font-weight:500}
+
 .rbox-rtl{direction:rtl!important;text-align:right!important;
     font-family:'Noto Naskh Arabic','Tajawal',sans-serif!important;
     font-size:1.3rem!important;line-height:2.5!important}
+
 .rbox-empty{color:rgba(255,255,255,.15);font-family:'Tajawal'!important;
     font-size:.95rem;display:flex;align-items:center;justify-content:center}
 
@@ -204,11 +238,9 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 </style>
 """, unsafe_allow_html=True)
 
-
 # ==========================================
-# 3. دوال النماذج
+# 4. دوال النماذج
 # ==========================================
-
 @st.cache_resource
 def load_corrector():
     """تحميل نموذج التصحيح T5"""
@@ -221,44 +253,63 @@ def load_corrector():
 
 @st.cache_resource
 def load_translator(src_code, tgt_code):
-    """تحميل نموذج ترجمة Helsinki-NLP"""
-    from transformers import pipeline
+    """
+    تحميل نموذج ترجمة Helsinki-NLP
+    مع تجربة عدة أسماء ممكنة للنموذج
+    """
+    from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 
+    # ✅ قائمة شاملة بأسماء النماذج الممكنة
     candidates = [
         "Helsinki-NLP/opus-mt-{}-{}".format(src_code, tgt_code),
         "Helsinki-NLP/opus-mt-tc-big-{}-{}".format(src_code, tgt_code),
+        "Helsinki-NLP/opus-mt-{}-{}".format(src_code, tgt_code.upper()),
     ]
 
-    for name in candidates:
+    errors_list = []
+
+    for model_name in candidates:
         try:
+            # ✅ تحميل صريح للتوكنايزر والنموذج
+            tok = AutoTokenizer.from_pretrained(model_name)
+            mdl = AutoModelForSeq2SeqLM.from_pretrained(model_name)
             pipe = pipeline(
                 "translation",
-                model=name,
-                tokenizer=name,
+                model=mdl,
+                tokenizer=tok,
                 device=-1,
             )
-            return pipe, name, None
-        except Exception:
+            return pipe, model_name, None
+        except Exception as e:
+            errors_list.append("{}: {}".format(model_name, str(e)))
             continue
 
-    err_msg = "No model found for {} to {}".format(src_code, tgt_code)
+    err_msg = "No translation model found for {} → {}.\nTried:\n{}".format(
+        src_code, tgt_code, "\n".join(errors_list)
+    )
     return None, candidates[0], err_msg
 
 
-# اللغات
+# ✅ خريطة اللغات مع أسماء النماذج الصحيحة
 TRANS_LANGS = {
-    "🇸🇦 العربية": "ar",
-    "🇫🇷 Français": "fr",
-    "🇩🇪 Deutsch": "de",
-    "🇪🇸 Español": "es",
-    "🇮🇹 Italiano": "it",
-    "🇵🇹 Português": "pt",
-    "🇷🇺 Русский": "ru",
-    "🇹🇷 Türkçe": "tr",
-    "🇳🇱 Nederlands": "nl",
-    "🇸🇪 Svenska": "sv",
-    "🇨🇳 中文": "zh",
-    "🇯🇵 日本語": "ja",
+    "🇸🇦 العربية (Arabic)":     "ar",
+    "🇫🇷 Français (French)":    "fr",
+    "🇩🇪 Deutsch (German)":     "de",
+    "🇪🇸 Español (Spanish)":    "es",
+    "🇮🇹 Italiano (Italian)":   "it",
+    "🇵🇹 Português (Portuguese)": "pt",
+    "🇷🇺 Русский (Russian)":    "ru",
+    "🇹🇷 Türkçe (Turkish)":     "tr",
+    "🇳🇱 Nederlands (Dutch)":   "nl",
+    "🇸🇪 Svenska (Swedish)":    "sv",
+    "🇨🇳 中文 (Chinese)":        "zh",
+    "🇯🇵 日本語 (Japanese)":      "jap",
+}
+
+# ✅ خريطة بديلة: بعض اللغات لها أسماء نماذج مختلفة
+MODEL_CODE_MAP = {
+    "zh":  "zh",
+    "jap": "jap",
 }
 
 RTL_CODES = {"ar", "he", "fa", "ur"}
@@ -294,7 +345,7 @@ def correct_text(text, tokenizer, model):
 
 
 def translate_text(text, translator):
-    """ترجمة نص"""
+    """ترجمة نص - تقسيم الجمل الطويلة"""
     max_chunk = 400
     if len(text) <= max_chunk:
         r = translator(text, max_length=512, num_beams=4)
@@ -330,9 +381,8 @@ def make_diff(orig, fixed):
 
 
 # ==========================================
-# 4. الواجهة العلوية
+# 5. الواجهة العلوية
 # ==========================================
-
 st.markdown("""
 <div class="bg-fx">
     <div class="bg-orb o1"></div>
@@ -354,17 +404,15 @@ st.markdown("""
     <div class="hero-chip">🧠 Correct &amp; Translate</div>
     <h1><span class="glow">AI Grammar Corrector</span></h1>
     <p class="hero-desc">
-        Correct English grammar errors then translate the result
-        to any language — all in one place
+        Correct English grammar errors then translate
+        the result to any language — all in one place
     </p>
 </div>
 """, unsafe_allow_html=True)
 
-
 # ==========================================
-# 5. تحميل نموذج التصحيح
+# 6. تحميل نموذج التصحيح
 # ==========================================
-
 corrector_tok = None
 corrector_mdl = None
 corrector_ok = False
@@ -389,11 +437,9 @@ except Exception as e:
     with st.expander("Details"):
         st.error(str(e))
 
-
 # ==========================================
-# 6. قسم التصحيح
+# 7. قسم التصحيح
 # ==========================================
-
 st.markdown('<div class="workzone">', unsafe_allow_html=True)
 
 EXAMPLES = [
@@ -555,11 +601,9 @@ if cpy1:
     else:
         st.warning("⚠️ No result")
 
-
 # ==========================================
-# 7. قسم الترجمة
+# 8. قسم الترجمة
 # ==========================================
-
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
 st.markdown(
@@ -583,7 +627,7 @@ else:
     preview = corrected_text[:100]
     if len(corrected_text) > 100:
         preview += "..."
-    st.markdown("**Text to translate:** _" + preview + "_")
+    st.markdown("**Text to translate:** " + preview)
 
     col_lang, col_btn = st.columns([3, 2])
 
@@ -596,7 +640,7 @@ else:
         )
 
     tgt_code = TRANS_LANGS[target_lang]
-    lang_short = target_lang.split("(")[0].strip() if "(" in target_lang else target_lang
+    lang_short = target_lang
 
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -620,7 +664,7 @@ else:
         )
 
     if go_translate:
-        with st.spinner("🌍 Loading translation model..."):
+        with st.spinner("🌍 Loading translation model for " + lang_short + "..."):
             try:
                 translator, used_model, err = load_translator(
                     "en", tgt_code
@@ -628,7 +672,20 @@ else:
 
                 if translator is None:
                     st.error("❌ " + str(err))
+                    st.markdown("""
+                    **💡 Possible solutions:**
+                    1. Check that `sentencepiece` is installed
+                    2. Check that `sacremoses` is installed
+                    3. Check internet connection for model download
+                    """)
                 else:
+                    st.markdown(
+                        '<div class="pill pill-ok">'
+                        '<div class="pdot"></div>'
+                        'Model loaded: ' + used_model + '</div>',
+                        unsafe_allow_html=True,
+                    )
+
                     t0 = time.time()
                     translated = translate_text(
                         corrected_text, translator
@@ -673,6 +730,8 @@ else:
 
             except Exception as e:
                 st.error("❌ Translation error: " + str(e))
+                with st.expander("🔍 Full error details"):
+                    st.code(str(e))
 
     cpy2 = st.button(
         "📋 Copy Translation",
@@ -687,11 +746,9 @@ else:
         else:
             st.warning("⚠️ No translation yet")
 
-
 # ==========================================
-# 8. الميزات
+# 9. الميزات
 # ==========================================
-
 st.markdown("""
 <div class="fgrid">
     <div class="fc"><div class="fc-ico">🧠</div>
@@ -717,11 +774,9 @@ st.markdown("""
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-
 # ==========================================
-# 9. الفوتر
+# 10. الفوتر
 # ==========================================
-
 st.markdown("""
 <div class="appfoot">
     <div class="af-brand">🤖 Grammar AI + 🌍 Translator</div>
