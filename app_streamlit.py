@@ -3,6 +3,7 @@ import time
 import re
 import difflib
 import sys
+import subprocess
 
 # ==========================================
 # 1. إعدادات الصفحة
@@ -15,12 +16,9 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. تثبيت المكتبات المطلوبة تلقائياً
+# 2. تثبيت المكتبات
 # ==========================================
-import subprocess
-
 def install_if_missing(package_name, import_name=None):
-    """تثبيت مكتبة إن لم تكن موجودة"""
     if import_name is None:
         import_name = package_name
     try:
@@ -31,15 +29,13 @@ def install_if_missing(package_name, import_name=None):
             package_name, "-q"
         ])
 
-# ✅ المكتبات الضرورية للترجمة والتصحيح
 install_if_missing("transformers")
 install_if_missing("torch")
 install_if_missing("sentencepiece")
 install_if_missing("sacremoses")
-install_if_missing("protobuf")
 
 # ==========================================
-# 3. CSS
+# 3. CSS (نفس التصميم)
 # ==========================================
 st.markdown("""
 <style>
@@ -58,13 +54,10 @@ st.markdown("""
 }
 
 *{font-family:'Tajawal',sans-serif!important}
-
 html,body,[data-testid="stAppViewContainer"]{
     background:var(--dark-1)!important;
     color:var(--text-primary)!important}
-
 .main .block-container{padding:0!important;max-width:100%!important}
-
 #MainMenu,footer,header,
 [data-testid="stHeader"],
 [data-testid="stToolbar"],
@@ -83,7 +76,6 @@ html,body,[data-testid="stAppViewContainer"]{
         linear-gradient(rgba(233,196,106,.02) 1px,transparent 1px),
         linear-gradient(90deg,rgba(233,196,106,.02) 1px,transparent 1px);
     background-size:80px 80px}
-
 @keyframes drift{
     0%,100%{transform:translate(0,0) scale(1)}
     33%{transform:translate(50px,-60px) scale(1.08)}
@@ -119,7 +111,6 @@ html,body,[data-testid="stAppViewContainer"]{
 
 .workzone{position:relative;z-index:1;max-width:1000px;margin:0 auto;
     padding:0 2rem 3rem}
-
 .gc{background:var(--glass);backdrop-filter:blur(20px);
     border:1px solid var(--glass-border);border-radius:22px;
     padding:1.8rem;margin-bottom:1.3rem}
@@ -158,21 +149,17 @@ html,body,[data-testid="stAppViewContainer"]{
         rgba(233,196,106,.04),rgba(168,218,220,.03))}
 .rbox::before{content:'';position:absolute;top:0;left:0;right:0;
     height:3px;border-radius:14px 14px 0 0}
-
 .rbox-diff::before{
     background:linear-gradient(90deg,var(--red),var(--orange),var(--green))}
 .rbox-clean::before{
     background:linear-gradient(90deg,var(--green),var(--cyan))}
 .rbox-clean{color:var(--green);font-weight:500}
-
 .rbox-trans::before{
     background:linear-gradient(90deg,var(--blue),var(--teal))}
 .rbox-trans{color:var(--cyan);font-weight:500}
-
 .rbox-rtl{direction:rtl!important;text-align:right!important;
     font-family:'Noto Naskh Arabic','Tajawal',sans-serif!important;
     font-size:1.3rem!important;line-height:2.5!important}
-
 .rbox-empty{color:rgba(255,255,255,.15);font-family:'Tajawal'!important;
     font-size:.95rem;display:flex;align-items:center;justify-content:center}
 
@@ -238,13 +225,15 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 </style>
 """, unsafe_allow_html=True)
 
+
 # ==========================================
-# 4. دوال النماذج
+# 4. دوال النماذج - الحل الجديد بدون pipeline
 # ==========================================
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
 @st.cache_resource
 def load_corrector():
-    """تحميل نموذج التصحيح T5"""
-    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+    """تحميل نموذج التصحيح"""
     name = "prithivida/grammar_error_correcter_v1"
     tok = AutoTokenizer.from_pretrained(name)
     mdl = AutoModelForSeq2SeqLM.from_pretrained(name)
@@ -252,71 +241,54 @@ def load_corrector():
 
 
 @st.cache_resource
-def load_translator(src_code, tgt_code):
+def load_translator_model(src_code, tgt_code):
     """
-    تحميل نموذج ترجمة Helsinki-NLP
-    مع تجربة عدة أسماء ممكنة للنموذج
+    ✅ الحل: تحميل النموذج يدوياً بدون pipeline
+    هذا يعمل مع كل نسخ transformers
     """
-    from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
-
-    # ✅ قائمة شاملة بأسماء النماذج الممكنة
     candidates = [
         "Helsinki-NLP/opus-mt-{}-{}".format(src_code, tgt_code),
         "Helsinki-NLP/opus-mt-tc-big-{}-{}".format(src_code, tgt_code),
-        "Helsinki-NLP/opus-mt-{}-{}".format(src_code, tgt_code.upper()),
     ]
 
     errors_list = []
 
     for model_name in candidates:
         try:
-            # ✅ تحميل صريح للتوكنايزر والنموذج
             tok = AutoTokenizer.from_pretrained(model_name)
             mdl = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-            pipe = pipeline(
-                "translation",
-                model=mdl,
-                tokenizer=tok,
-                device=-1,
-            )
-            return pipe, model_name, None
+            return tok, mdl, model_name, None
         except Exception as e:
-            errors_list.append("{}: {}".format(model_name, str(e)))
+            errors_list.append("{}: {}".format(model_name, str(e)[:100]))
             continue
 
-    err_msg = "No translation model found for {} → {}.\nTried:\n{}".format(
+    err_msg = "No model found for {} → {}.\nTried:\n{}".format(
         src_code, tgt_code, "\n".join(errors_list)
     )
-    return None, candidates[0], err_msg
+    return None, None, None, err_msg
 
 
-# ✅ خريطة اللغات مع أسماء النماذج الصحيحة
+# اللغات المدعومة
 TRANS_LANGS = {
-    "🇸🇦 العربية (Arabic)":     "ar",
-    "🇫🇷 Français (French)":    "fr",
-    "🇩🇪 Deutsch (German)":     "de",
-    "🇪🇸 Español (Spanish)":    "es",
-    "🇮🇹 Italiano (Italian)":   "it",
-    "🇵🇹 Português (Portuguese)": "pt",
-    "🇷🇺 Русский (Russian)":    "ru",
-    "🇹🇷 Türkçe (Turkish)":     "tr",
-    "🇳🇱 Nederlands (Dutch)":   "nl",
-    "🇸🇪 Svenska (Swedish)":    "sv",
-    "🇨🇳 中文 (Chinese)":        "zh",
-    "🇯🇵 日本語 (Japanese)":      "jap",
-}
-
-# ✅ خريطة بديلة: بعض اللغات لها أسماء نماذج مختلفة
-MODEL_CODE_MAP = {
-    "zh":  "zh",
-    "jap": "jap",
+    "🇸🇦 العربية (Arabic)":        "ar",
+    "🇫🇷 Français (French)":       "fr",
+    "🇩🇪 Deutsch (German)":        "de",
+    "🇪🇸 Español (Spanish)":       "es",
+    "🇮🇹 Italiano (Italian)":      "it",
+    "🇵🇹 Português (Portuguese)":  "pt",
+    "🇷🇺 Русский (Russian)":       "ru",
+    "🇹🇷 Türkçe (Turkish)":        "tr",
+    "🇳🇱 Nederlands (Dutch)":      "nl",
+    "🇸🇪 Svenska (Swedish)":       "sv",
+    "🇨🇳 中文 (Chinese)":           "zh",
+    "🇯🇵 日本語 (Japanese)":         "jap",
 }
 
 RTL_CODES = {"ar", "he", "fa", "ur"}
 
 
 def correct_text(text, tokenizer, model):
-    """تصحيح نص كامل جملة بجملة"""
+    """تصحيح نص جملة بجملة"""
     sents = re.split(r'(?<=[.!?])\s+', text.strip())
     results = []
     for s in sents:
@@ -344,21 +316,52 @@ def correct_text(text, tokenizer, model):
     return " ".join(results)
 
 
-def translate_text(text, translator):
-    """ترجمة نص - تقسيم الجمل الطويلة"""
+def translate_text_manual(text, tokenizer, model):
+    """
+    ✅ ترجمة يدوية بدون pipeline
+    هذا هو الحل الذي يعمل مع كل النسخ
+    """
     max_chunk = 400
-    if len(text) <= max_chunk:
-        r = translator(text, max_length=512, num_beams=4)
-        return r[0]["translation_text"]
 
+    if len(text) <= max_chunk:
+        inputs = tokenizer(
+            text,
+            return_tensors="pt",
+            max_length=512,
+            truncation=True,
+            padding=True,
+        )
+        outputs = model.generate(
+            **inputs,
+            max_length=512,
+            num_beams=4,
+            early_stopping=True,
+        )
+        return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    # تقسيم النص الطويل
     sents = re.split(r'(?<=[.!?])\s+', text.strip())
     parts = []
     for s in sents:
         if not s.strip():
             continue
         try:
-            r = translator(s, max_length=512, num_beams=4)
-            parts.append(r[0]["translation_text"])
+            inputs = tokenizer(
+                s,
+                return_tensors="pt",
+                max_length=512,
+                truncation=True,
+                padding=True,
+            )
+            outputs = model.generate(
+                **inputs,
+                max_length=512,
+                num_beams=4,
+                early_stopping=True,
+            )
+            parts.append(
+                tokenizer.decode(outputs[0], skip_special_tokens=True)
+            )
         except Exception:
             parts.append(s)
     return " ".join(parts)
@@ -370,11 +373,9 @@ def make_diff(orig, fixed):
     parts = []
     for t in d:
         if t.startswith("- "):
-            w = t[2:]
-            parts.append('<mark class="err">' + w + "</mark>")
+            parts.append('<mark class="err">' + t[2:] + "</mark>")
         elif t.startswith("+ "):
-            w = t[2:]
-            parts.append('<mark class="fix">' + w + "</mark>")
+            parts.append('<mark class="fix">' + t[2:] + "</mark>")
         elif t.startswith("  "):
             parts.append(t[2:])
     return " ".join(parts)
@@ -438,7 +439,7 @@ except Exception as e:
         st.error(str(e))
 
 # ==========================================
-# 7. قسم التصحيح
+# 7. منطقة العمل
 # ==========================================
 st.markdown('<div class="workzone">', unsafe_allow_html=True)
 
@@ -490,7 +491,7 @@ user_text = st.text_area(
 
 wc = len(user_text.split()) if user_text.strip() else 0
 cc = len(user_text)
-st.caption("📏 " + str(wc) + " words · " + str(cc) + " chars")
+st.caption("📏 {} words · {} chars".format(wc, cc))
 
 b1, b2, b3 = st.columns([3, 1, 1])
 with b1:
@@ -540,9 +541,7 @@ if go_correct:
     else:
         with st.spinner("🧠 Correcting..."):
             t0 = time.time()
-            final = correct_text(
-                user_text, corrector_tok, corrector_mdl
-            )
+            final = correct_text(user_text, corrector_tok, corrector_mdl)
             elapsed = round(time.time() - t0, 2)
 
         st.session_state["corrected"] = final
@@ -558,7 +557,6 @@ if go_correct:
             '<div class="rbox rbox-diff">' + diff_html + '</div>',
             unsafe_allow_html=True,
         )
-
         st.markdown("<br>", unsafe_allow_html=True)
 
         corr_holder.markdown(
@@ -566,30 +564,24 @@ if go_correct:
             unsafe_allow_html=True,
         )
 
-        st.success("✅ Corrected in " + str(elapsed) + "s!")
+        st.success("✅ Corrected in {}s!".format(elapsed))
 
         ow = user_text.split()
         fw = final.split()
-        changes = sum(
-            1 for a, b in zip(ow, fw) if a != b
-        ) + abs(len(ow) - len(fw))
+        changes = sum(1 for a, b in zip(ow, fw) if a != b) + abs(len(ow) - len(fw))
         num_sents = len(re.split(r'(?<=[.!?])\s+', user_text.strip()))
 
         st.markdown(
             '<div class="sgrid">'
-            '<div class="sc"><div class="sc-val">'
-            + str(len(ow))
-            + '</div><div class="sc-lbl">Words</div></div>'
-            '<div class="sc"><div class="sc-val" style="color:#ff7675">'
-            + str(changes)
-            + '</div><div class="sc-lbl">Changes</div></div>'
-            '<div class="sc"><div class="sc-val" style="color:#55efc4">'
-            + str(num_sents)
-            + '</div><div class="sc-lbl">Sentences</div></div>'
-            '<div class="sc"><div class="sc-val" style="color:var(--cyan)">'
-            + str(elapsed)
-            + 's</div><div class="sc-lbl">Time</div></div>'
-            '</div>',
+            '<div class="sc"><div class="sc-val">{}</div>'
+            '<div class="sc-lbl">Words</div></div>'
+            '<div class="sc"><div class="sc-val" style="color:#ff7675">{}</div>'
+            '<div class="sc-lbl">Changes</div></div>'
+            '<div class="sc"><div class="sc-val" style="color:#55efc4">{}</div>'
+            '<div class="sc-lbl">Sentences</div></div>'
+            '<div class="sc"><div class="sc-val" style="color:var(--cyan)">{}s</div>'
+            '<div class="sc-lbl">Time</div></div>'
+            '</div>'.format(len(ow), changes, num_sents, elapsed),
             unsafe_allow_html=True,
         )
 
@@ -600,6 +592,7 @@ if cpy1:
         st.info("📋 Select and copy Ctrl+C")
     else:
         st.warning("⚠️ No result")
+
 
 # ==========================================
 # 8. قسم الترجمة
@@ -619,10 +612,7 @@ st.markdown(
 corrected_text = st.session_state.get("corrected", "")
 
 if not corrected_text:
-    st.info(
-        "💡 Correct the text first, then choose "
-        "a language to translate to."
-    )
+    st.info("💡 Correct the text first, then choose a language to translate to.")
 else:
     preview = corrected_text[:100]
     if len(corrected_text) > 100:
@@ -640,55 +630,51 @@ else:
         )
 
     tgt_code = TRANS_LANGS[target_lang]
-    lang_short = target_lang
 
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
         go_translate = st.button(
-            "🌍 Translate to " + lang_short,
+            "🌍 Translate to " + target_lang,
             type="primary",
             use_container_width=True,
             key="btn_trans",
         )
 
-    # نتيجة الترجمة
+    # حاوية نتيجة الترجمة
     trans_holder = st.empty()
 
     translated_text = st.session_state.get("translated", "")
     if translated_text:
         rtl_cls = "rbox-rtl" if tgt_code in RTL_CODES else ""
         trans_holder.markdown(
-            '<div class="rbox rbox-trans ' + rtl_cls + '">'
-            + translated_text + '</div>',
+            '<div class="rbox rbox-trans {}">{}</div>'.format(
+                rtl_cls, translated_text
+            ),
             unsafe_allow_html=True,
         )
 
     if go_translate:
-        with st.spinner("🌍 Loading translation model for " + lang_short + "..."):
+        with st.spinner("🌍 Loading translation model..."):
             try:
-                translator, used_model, err = load_translator(
+                # ✅ تحميل يدوي بدون pipeline
+                trans_tok, trans_mdl, used_model, err = load_translator_model(
                     "en", tgt_code
                 )
 
-                if translator is None:
+                if trans_tok is None:
                     st.error("❌ " + str(err))
-                    st.markdown("""
-                    **💡 Possible solutions:**
-                    1. Check that `sentencepiece` is installed
-                    2. Check that `sacremoses` is installed
-                    3. Check internet connection for model download
-                    """)
                 else:
                     st.markdown(
                         '<div class="pill pill-ok">'
                         '<div class="pdot"></div>'
-                        'Model loaded: ' + used_model + '</div>',
+                        'Model: {}</div>'.format(used_model),
                         unsafe_allow_html=True,
                     )
 
                     t0 = time.time()
-                    translated = translate_text(
-                        corrected_text, translator
+                    # ✅ ترجمة يدوية
+                    translated = translate_text_manual(
+                        corrected_text, trans_tok, trans_mdl
                     )
                     elapsed = round(time.time() - t0, 2)
 
@@ -696,41 +682,40 @@ else:
 
                     rtl_cls = "rbox-rtl" if tgt_code in RTL_CODES else ""
                     trans_holder.markdown(
-                        '<div class="rbox rbox-trans ' + rtl_cls + '">'
-                        + translated + '</div>',
+                        '<div class="rbox rbox-trans {}">{}</div>'.format(
+                            rtl_cls, translated
+                        ),
                         unsafe_allow_html=True,
                     )
 
                     st.success(
-                        "✅ Translated in " + str(elapsed)
-                        + "s using " + used_model
+                        "✅ Translated in {}s using {}".format(
+                            elapsed, used_model
+                        )
                     )
 
-                    src_wc = str(len(corrected_text.split()))
-                    tgt_wc = str(len(translated.split()))
-                    lang_up = tgt_code.upper()
+                    src_wc = len(corrected_text.split())
+                    tgt_wc = len(translated.split())
 
                     st.markdown(
                         '<div class="sgrid">'
-                        '<div class="sc"><div class="sc-val">'
-                        + src_wc
-                        + '</div><div class="sc-lbl">Source Words</div></div>'
-                        '<div class="sc"><div class="sc-val" style="color:var(--cyan)">'
-                        + tgt_wc
-                        + '</div><div class="sc-lbl">Translated</div></div>'
-                        '<div class="sc"><div class="sc-val" style="color:#a855f7">'
-                        + lang_up
-                        + '</div><div class="sc-lbl">Language</div></div>'
-                        '<div class="sc"><div class="sc-val" style="color:var(--green)">'
-                        + str(elapsed)
-                        + 's</div><div class="sc-lbl">Time</div></div>'
-                        '</div>',
+                        '<div class="sc"><div class="sc-val">{}</div>'
+                        '<div class="sc-lbl">Source Words</div></div>'
+                        '<div class="sc"><div class="sc-val" style="color:var(--cyan)">{}</div>'
+                        '<div class="sc-lbl">Translated</div></div>'
+                        '<div class="sc"><div class="sc-val" style="color:#a855f7">{}</div>'
+                        '<div class="sc-lbl">Language</div></div>'
+                        '<div class="sc"><div class="sc-val" style="color:var(--green)">{}s</div>'
+                        '<div class="sc-lbl">Time</div></div>'
+                        '</div>'.format(
+                            src_wc, tgt_wc, tgt_code.upper(), elapsed
+                        ),
                         unsafe_allow_html=True,
                     )
 
             except Exception as e:
                 st.error("❌ Translation error: " + str(e))
-                with st.expander("🔍 Full error details"):
+                with st.expander("🔍 Full error"):
                     st.code(str(e))
 
     cpy2 = st.button(
@@ -745,6 +730,7 @@ else:
             st.info("📋 Select and copy Ctrl+C")
         else:
             st.warning("⚠️ No translation yet")
+
 
 # ==========================================
 # 9. الميزات
