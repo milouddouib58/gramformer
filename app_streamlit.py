@@ -2,10 +2,7 @@ import streamlit as st
 import time
 import re
 import difflib
-import subprocess
 import sys
-import os
-import importlib
 
 # ==========================================
 # 1. إعدادات الصفحة
@@ -26,20 +23,23 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-    --gold:#e9c46a; --gold-light:#f4d58d; --orange:#f4a261;
-    --cyan:#a8dadc; --green:#2ecc71; --red:#e74c3c;
-    --purple:#a855f7; --dark-1:#050510; --dark-2:#0d0d2b;
-    --text-primary:#f0f0f0; --text-secondary:#a0a0b0;
+    --gold:#e9c46a;--gold-light:#f4d58d;--orange:#f4a261;
+    --cyan:#a8dadc;--green:#2ecc71;--red:#e74c3c;
+    --purple:#a855f7;--dark-1:#050510;--dark-2:#0d0d2b;
+    --text-primary:#f0f0f0;--text-secondary:#a0a0b0;
     --glass:rgba(255,255,255,0.03);
     --glass-border:rgba(255,255,255,0.08);
 }
 *{font-family:'Tajawal',sans-serif!important}
 html,body,[data-testid="stAppViewContainer"]{
-    background:var(--dark-1)!important;color:var(--text-primary)!important;
+    background:var(--dark-1)!important;
+    color:var(--text-primary)!important;
 }
 .main .block-container{padding:0!important;max-width:100%!important}
-#MainMenu,footer,header,[data-testid="stHeader"],
-[data-testid="stToolbar"],[data-testid="stDecoration"]{display:none!important}
+#MainMenu,footer,header,
+[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"]{display:none!important}
 
 .bg-fx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .bg-orb{position:absolute;border-radius:50%;filter:blur(100px);opacity:.12;animation:drift 25s ease-in-out infinite}
@@ -101,9 +101,8 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;padding:1
 .pill{display:inline-flex;align-items:center;gap:.45rem;padding:.4rem 1rem;border-radius:50px;font-size:.85rem;font-weight:600}
 .pill-ok{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.25);color:#2ecc71}
 .pill-err{background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);color:#e74c3c}
-.pill-load{background:rgba(233,196,106,.1);border:1px solid rgba(233,196,106,.25);color:var(--gold)}
 .pdot{width:7px;height:7px;border-radius:50%;animation:blink 2s infinite}
-.pill-ok .pdot{background:#2ecc71}.pill-err .pdot{background:#e74c3c}.pill-load .pdot{background:var(--gold)}
+.pill-ok .pdot{background:#2ecc71}.pill-err .pdot{background:#e74c3c}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
 .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:2.5rem 0}
@@ -117,8 +116,8 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;padding:1
 .af-brand{font-size:1.1rem;font-weight:800;color:var(--gold)}
 .af-txt{color:var(--text-secondary);font-size:.82rem;margin-top:.3rem}
 
-.log-box{background:rgba(0,0,0,.4);border:1px solid var(--glass-border);border-radius:12px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--text-secondary);max-height:200px;overflow-y:auto;direction:ltr;text-align:left}
-.log-ok{color:#2ecc71}.log-err{color:#e74c3c}.log-warn{color:#f39c12}
+.dep-box{background:rgba(0,0,0,.4);border:1px solid var(--glass-border);border-radius:12px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--text-secondary);direction:ltr;text-align:left}
+.dep-ok{color:#2ecc71}.dep-fail{color:#e74c3c}
 
 @media(max-width:768px){.topbar{padding:.7rem 1rem}.hero h1{font-size:2rem}.sgrid{grid-template-columns:repeat(2,1fr)}.fgrid{grid-template-columns:1fr}.workzone{padding:0 1rem 2rem}}
 </style>
@@ -126,173 +125,72 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;padding:1
 
 
 # ==========================================
-# 3. أدوات التثبيت الآمنة
-# ==========================================
-
-def safe_run(args, timeout=300):
-    """تشغيل أمر وإرجاع النتيجة"""
-    try:
-        r = subprocess.run(
-            args, capture_output=True, text=True,
-            timeout=timeout, env={**os.environ}
-        )
-        return r.returncode == 0, r.stdout + r.stderr
-    except subprocess.TimeoutExpired:
-        return False, "Timeout"
-    except Exception as e:
-        return False, str(e)
-
-
-def pip_install(*packages):
-    """تثبيت حزم باستخدام pip"""
-    ok, out = safe_run([
-        sys.executable, "-m", "pip", "install",
-        *packages, "--quiet", "--no-cache-dir"
-    ])
-    return ok, out
-
-
-def is_installed(module_name):
-    """فحص إذا كانت مكتبة مثبتة"""
-    try:
-        importlib.import_module(module_name)
-        return True
-    except ImportError:
-        return False
-
-
-# ==========================================
-# 4. تحميل النموذج مع كل المحاولات
+# 3. تحميل النموذج (بدون أي pip install)
 # ==========================================
 
 @st.cache_resource
-def setup_and_load():
-    """
-    تثبيت كل المتطلبات وتحميل النموذج
-    يعمل مع uv pip + Python 3.14
-    """
-    log = []
+def load_grammar_model():
+    """تحميل النموذج - كل المكتبات مثبتة من requirements.txt"""
+    checks = []
 
-    # ─── الخطوة 1: errant ───
-    if is_installed("errant"):
-        log.append(("ok", "errant already installed"))
-    else:
-        ok, out = pip_install("errant")
-        if ok:
-            log.append(("ok", "errant installed"))
-        else:
-            log.append(("warn", f"errant skip: {out[:100]}"))
-
-    # ─── الخطوة 2: spaCy model ───
-    spacy_ok = False
-
+    # فحص spaCy
     try:
         import spacy
-        spacy.load("en_core_web_sm")
-        spacy_ok = True
-        log.append(("ok", "spaCy model found"))
-    except Exception:
-        log.append(("warn", "spaCy model not found, installing..."))
+        checks.append(("ok", f"spacy {spacy.__version__}"))
+    except ImportError as e:
+        checks.append(("fail", f"spacy: {e}"))
+        return None, checks
 
-    if not spacy_ok:
-        # طريقة 1
-        ok, _ = safe_run([
-            sys.executable, "-m", "spacy",
-            "download", "en_core_web_sm"
-        ], timeout=180)
-        if ok:
-            spacy_ok = True
-            log.append(("ok", "spaCy model via spacy download"))
-
-    if not spacy_ok:
-        # طريقة 2: تجربة عدة إصدارات
-        versions = ["3.8.0", "3.7.1", "3.7.0", "3.6.0", "3.5.0"]
-        for v in versions:
-            url = (
-                f"https://github.com/explosion/spacy-models/"
-                f"releases/download/en_core_web_sm-{v}/"
-                f"en_core_web_sm-{v}-py3-none-any.whl"
-            )
-            ok, _ = pip_install(url)
-            if ok:
-                spacy_ok = True
-                log.append(("ok", f"spaCy model v{v} installed"))
-                break
-
-    if not spacy_ok:
-        # طريقة 3
-        ok, _ = pip_install("en-core-web-sm")
-        if ok:
-            spacy_ok = True
-            log.append(("ok", "spaCy model via pip"))
-
-    if not spacy_ok:
-        log.append(("err", "All spaCy install methods failed"))
-        return None, log
-
-    # تحقق نهائي
+    # فحص spaCy model
     try:
-        import spacy
-        spacy.load("en_core_web_sm")
-        log.append(("ok", "spaCy model verified"))
-    except Exception as e:
-        log.append(("err", f"spaCy verify failed: {e}"))
-        return None, log
+        nlp = spacy.load("en_core_web_sm")
+        checks.append(("ok", "en_core_web_sm loaded"))
+    except OSError as e:
+        checks.append(("fail", f"en_core_web_sm: {e}"))
+        return None, checks
 
-    # ─── الخطوة 3: gramformer ───
-    if is_installed("gramformer"):
-        log.append(("ok", "gramformer already installed"))
-    else:
-        # طريقة 1: من GitHub
-        ok, out = pip_install(
-            "git+https://github.com/PrithivirajDamodaran/Gramformer.git"
-        )
-        if ok:
-            log.append(("ok", "gramformer from GitHub"))
-        else:
-            # طريقة 2: من PyPI
-            ok2, out2 = pip_install("gramformer")
-            if ok2:
-                log.append(("ok", "gramformer from PyPI"))
-            else:
-                # طريقة 3: تثبيت يدوي
-                ok3, _ = safe_run([
-                    sys.executable, "-m", "pip", "install",
-                    "gramformer", "--no-deps",
-                    "--quiet", "--no-cache-dir"
-                ])
-                if ok3:
-                    log.append(("ok", "gramformer no-deps"))
-                else:
-                    log.append(("err",
-                        f"gramformer failed: {out[:150]}"))
-                    return None, log
-
-    # ─── الخطوة 4: تحميل النموذج ───
+    # فحص torch
     try:
         import torch
         torch.manual_seed(1212)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(1212)
-        log.append(("ok", f"PyTorch {torch.__version__}"))
-    except Exception as e:
-        log.append(("err", f"PyTorch: {e}"))
-        return None, log
+        checks.append(("ok", f"torch {torch.__version__}"))
+    except ImportError as e:
+        checks.append(("fail", f"torch: {e}"))
+        return None, checks
 
+    # فحص transformers
+    try:
+        import transformers
+        checks.append(("ok", f"transformers {transformers.__version__}"))
+    except ImportError as e:
+        checks.append(("fail", f"transformers: {e}"))
+        return None, checks
+
+    # فحص gramformer
     try:
         from gramformer import Gramformer
+        checks.append(("ok", "gramformer imported"))
+    except ImportError as e:
+        checks.append(("fail", f"gramformer: {e}"))
+        return None, checks
+
+    # تحميل النموذج
+    try:
         gf = Gramformer(models=1, use_gpu=False)
-        log.append(("ok", "Gramformer model loaded"))
-        return gf, log
+        checks.append(("ok", "Model loaded successfully"))
+        return gf, checks
     except Exception as e:
-        log.append(("err", f"Gramformer load: {e}"))
-        return None, log
+        checks.append(("fail", f"Model load: {e}"))
+        return None, checks
 
 
 # ==========================================
-# 5. الواجهة
+# 4. الواجهة
 # ==========================================
 
+# الخلفية
 st.markdown("""
 <div class="bg-fx">
     <div class="bg-orb o1"></div>
@@ -309,6 +207,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Hero
 st.markdown("""
 <div class="hero">
     <div class="hero-chip">🧠 Powered by Transformers</div>
@@ -326,88 +225,83 @@ st.markdown("""
 
 
 # ==========================================
-# 6. تحميل النموذج
+# 5. تحميل النموذج
 # ==========================================
 
 gf = None
 model_ok = False
-setup_log = []
-
-status_area = st.empty()
-status_area.markdown(
-    '<div class="pill pill-load">'
-    '<div class="pdot"></div>'
-    'Setting up AI model...'
-    '</div>',
-    unsafe_allow_html=True,
-)
 
 try:
-    with st.spinner("🔄 Installing & loading (first run ~2 min)..."):
-        gf, setup_log = setup_and_load()
+    with st.spinner("🔄 Loading AI model..."):
+        gf, checks = load_grammar_model()
 
     if gf is not None:
         model_ok = True
-        status_area.markdown(
+        st.markdown(
             '<div class="pill pill-ok">'
             '<div class="pdot"></div>'
-            'Model Ready ✓'
-            '</div>',
+            'Model Ready ✓</div>',
             unsafe_allow_html=True,
         )
     else:
-        status_area.markdown(
+        st.markdown(
             '<div class="pill pill-err">'
             '<div class="pdot"></div>'
-            'Setup Failed'
-            '</div>',
+            'Model Failed</div>',
             unsafe_allow_html=True,
         )
 
 except Exception as e:
-    setup_log.append(("err", str(e)))
-    status_area.markdown(
+    checks = [("fail", str(e))]
+    st.markdown(
         '<div class="pill pill-err">'
         '<div class="pdot"></div>'
-        'Error'
-        '</div>',
+        'Error</div>',
         unsafe_allow_html=True,
     )
 
-# عرض سجل التثبيت
-if setup_log:
-    with st.expander(
-        "📋 Setup Log" if model_ok else "🔍 Error Details"
-    ):
-        log_html = '<div class="log-box">'
-        for level, msg in setup_log:
-            css = {"ok": "log-ok", "err": "log-err", "warn": "log-warn"}.get(level, "")
-            icon = {"ok": "✓", "err": "✗", "warn": "⚠"}.get(level, "•")
-            log_html += f'<div class="{css}">{icon} {msg}</div>'
+# تفاصيل
+with st.expander(
+    "✅ System Info" if model_ok else "🔍 Error Details"
+):
+    html = '<div class="dep-box">'
+    for level, msg in checks:
+        cls = "dep-ok" if level == "ok" else "dep-fail"
+        ico = "✓" if level == "ok" else "✗"
+        html += f'<div class="{cls}">{ico} {msg}</div>'
 
-        if not model_ok:
-            log_html += (
-                '<br><div class="log-warn">'
-                '── Run locally ──<br>'
-                '$ pip install gramformer spacy torch<br>'
-                '$ python -m spacy download en_core_web_sm<br>'
-                '$ streamlit run app_streamlit.py'
-                '</div>'
-            )
+    html += f'<br><div>Python: {sys.version}</div>'
 
-        log_html += '</div>'
-        st.markdown(log_html, unsafe_allow_html=True)
+    if not model_ok:
+        html += (
+            '<br><div class="dep-fail">'
+            'Fix: Make sure requirements.txt has:<br><br>'
+            'streamlit>=1.28.0<br>'
+            'torch<br>'
+            'transformers<br>'
+            'sentencepiece<br>'
+            'protobuf<br>'
+            'spacy==3.7.1<br>'
+            'errant<br>'
+            'gramformer<br>'
+            'en-core-web-sm @ https://github.com/explosion/'
+            'spacy-models/releases/download/'
+            'en_core_web_sm-3.7.1/'
+            'en_core_web_sm-3.7.1-py3-none-any.whl'
+            '</div>'
+        )
 
-        st.markdown(f"**Python:** `{sys.version}`")
-        st.markdown(f"**Platform:** `{sys.platform}`")
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 
 # ==========================================
-# 7. منطقة العمل
+# 6. منطقة العمل
 # ==========================================
 
 st.markdown('<div class="workzone">', unsafe_allow_html=True)
 
+# نماذج جاهزة
 EXAMPLES = [
     "Last weak, me and my freind goed to the librery.",
     "She dont knows what happend yestarday.",
@@ -428,9 +322,13 @@ ecols = st.columns(3)
 for i, ex in enumerate(EXAMPLES):
     with ecols[i % 3]:
         short = ex[:32] + "..." if len(ex) > 32 else ex
-        if st.button(short, key=f"ex{i}", use_container_width=True):
+        if st.button(
+            short, key=f"ex{i}", use_container_width=True
+        ):
             st.session_state["inp"] = ex
 
+
+# الإدخال
 st.markdown(
     '<div class="gc"><div class="gc-head">'
     '<div class="gc-title"><div class="gc-ico">✍️</div>'
@@ -457,6 +355,8 @@ user_text = st.text_area(
 wc = len(user_text.split()) if user_text.strip() else 0
 st.caption(f"📏 {wc} words · {len(user_text)} chars")
 
+
+# أزرار
 b1, b2, b3 = st.columns([3, 1, 1])
 with b1:
     go = st.button(
@@ -474,8 +374,11 @@ if clr:
     st.rerun()
 
 
+# ==========================================
+# 7. Diff
+# ==========================================
+
 def make_diff(orig, fixed):
-    """إنتاج HTML للفروقات"""
     d = difflib.ndiff(orig.split(), fixed.split())
     parts = []
     for t in d:
@@ -488,7 +391,10 @@ def make_diff(orig, fixed):
     return " ".join(parts)
 
 
-# النتائج
+# ==========================================
+# 8. النتائج
+# ==========================================
+
 st.markdown(
     '<div class="gc"><div class="gc-head">'
     '<div class="gc-title"><div class="gc-ico">✨</div>'
@@ -520,14 +426,18 @@ if go:
     else:
         with st.spinner("🧠 Correcting..."):
             t0 = time.time()
-            sents = re.split(r'(?<=[.!?])\s+', user_text.strip())
+            sents = re.split(
+                r'(?<=[.!?])\s+', user_text.strip()
+            )
             fixed = []
 
             for s in sents:
                 if s.strip():
                     try:
                         r = gf.correct(s, max_candidates=1)
-                        fixed.append(list(r)[0] if r else s)
+                        fixed.append(
+                            list(r)[0] if r else s
+                        )
                     except Exception:
                         fixed.append(s)
 
@@ -536,6 +446,7 @@ if go:
 
         st.session_state["result"] = final
 
+        # خريطة التعديلات
         diff_html = make_diff(user_text, final)
 
         st.markdown(
@@ -562,6 +473,7 @@ if go:
 
         st.success(f"✅ Done in {elapsed}s!")
 
+        # إحصائيات
         ow = user_text.split()
         fw = final.split()
         changes = sum(
@@ -592,6 +504,8 @@ if go:
         </div>
         """, unsafe_allow_html=True)
 
+
+# نسخ
 if cpy:
     lr = st.session_state.get("result", "")
     if lr:
@@ -602,7 +516,7 @@ if cpy:
 
 
 # ==========================================
-# 8. الميزات
+# 9. الميزات
 # ==========================================
 
 st.markdown("""
@@ -629,6 +543,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ==========================================
+# 10. الفوتر
+# ==========================================
 
 st.markdown("""
 <div class="appfoot">
