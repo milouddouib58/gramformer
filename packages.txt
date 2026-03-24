@@ -1,3 +1,2 @@
 build-essential
-libsndfile1
 git
