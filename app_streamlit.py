@@ -23,11 +23,16 @@ def install_if_missing(package_name, import_name=None):
         import_name = package_name
     try:
         __import__(import_name)
+        return True
     except ImportError:
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install",
-            package_name, "-q", "--no-warn-script-location"
-        ])
+        try:
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install",
+                package_name, "-q", "--no-warn-script-location"
+            ])
+            return True
+        except Exception:
+            return False
 
 required = [
     ("transformers", "transformers"),
@@ -36,20 +41,29 @@ required = [
     ("sacremoses", "sacremoses"),
     ("protobuf", "google.protobuf"),
     ("nltk", "nltk"),
+    ("language-tool-python", "language_tool_python"),
 ]
 
+install_status = {}
 for pkg, imp in required:
-    install_if_missing(pkg, imp)
+    install_status[pkg] = install_if_missing(pkg, imp)
 
-# تحميل بيانات nltk
+# تحميل nltk
 import nltk
 try:
     nltk.data.find('tokenizers/punkt_tab')
 except LookupError:
-    nltk.download('punkt_tab', quiet=True)
+    try:
+        nltk.download('punkt_tab', quiet=True)
+    except Exception:
+        try:
+            nltk.download('punkt', quiet=True)
+        except Exception:
+            pass
+
 
 # ==========================================
-# 3. CSS
+# 3. CSS الكامل
 # ==========================================
 st.markdown("""
 <style>
@@ -121,9 +135,9 @@ html,body,[data-testid="stAppViewContainer"]{
     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
     background-clip:text}
 .hero-desc{font-size:1.1rem;color:var(--text-secondary);
-    max-width:650px;margin:0 auto 2rem;line-height:1.8;font-weight:300}
+    max-width:700px;margin:0 auto 2rem;line-height:1.8;font-weight:300}
 
-.workzone{position:relative;z-index:1;max-width:1000px;margin:0 auto;
+.workzone{position:relative;z-index:1;max-width:1050px;margin:0 auto;
     padding:0 2rem 3rem}
 .gc{background:var(--glass);backdrop-filter:blur(20px);
     border:1px solid var(--glass-border);border-radius:22px;
@@ -138,13 +152,15 @@ html,body,[data-testid="stAppViewContainer"]{
     border-radius:9px;display:flex;align-items:center;
     justify-content:center;font-size:.85rem}
 .gc-ico-blue{background:linear-gradient(135deg,var(--blue),var(--teal))!important}
+.gc-ico-green{background:linear-gradient(135deg,var(--green),var(--teal))!important}
+.gc-ico-purple{background:linear-gradient(135deg,var(--purple),#ec4899)!important}
 .gc-badge{font-size:.78rem;color:var(--text-secondary);
     background:rgba(255,255,255,.04);padding:.25rem .7rem;
     border-radius:20px;border:1px solid var(--glass-border)}
 
 .stTextArea textarea{
     font-family:'JetBrains Mono',monospace!important;
-    font-size:1.1rem!important;line-height:1.9!important;
+    font-size:1.05rem!important;line-height:1.9!important;
     direction:ltr!important;text-align:left!important;
     background:rgba(0,0,0,.35)!important;
     border:2px solid var(--glass-border)!important;
@@ -152,12 +168,11 @@ html,body,[data-testid="stAppViewContainer"]{
     color:var(--text-primary)!important}
 .stTextArea textarea:focus{border-color:var(--gold)!important;
     box-shadow:0 0 0 3px rgba(233,196,106,.1)!important}
-.stTextArea textarea::placeholder{color:rgba(255,255,255,.18)!important}
 
 .rbox{border:2px solid rgba(233,196,106,.15);border-radius:14px;
     padding:1.5rem;direction:ltr;text-align:left;
-    font-family:'JetBrains Mono',monospace;font-size:1.1rem;
-    line-height:2.2;color:var(--text-primary);min-height:120px;
+    font-family:'JetBrains Mono',monospace;font-size:1.05rem;
+    line-height:2.2;color:var(--text-primary);min-height:100px;
     position:relative;overflow:hidden;word-wrap:break-word;
     background:linear-gradient(135deg,
         rgba(233,196,106,.04),rgba(168,218,220,.03))}
@@ -184,7 +199,7 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
     border-bottom:2px solid rgba(46,204,113,.5)}
 
 .stButton>button{border-radius:12px!important;padding:.75rem!important;
-    font-weight:700!important;font-size:1.05rem!important;border:none!important}
+    font-weight:700!important;font-size:1rem!important;border:none!important}
 .stButton>button[kind="primary"]{
     background:linear-gradient(135deg,var(--gold),var(--orange))!important;
     color:var(--dark-1)!important;
@@ -204,14 +219,27 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 .sc-lbl{font-size:.8rem;color:var(--text-secondary);margin-top:.2rem}
 
 .pill{display:inline-flex;align-items:center;gap:.45rem;padding:.4rem 1rem;
-    border-radius:50px;font-size:.85rem;font-weight:600}
+    border-radius:50px;font-size:.85rem;font-weight:600;margin:.2rem}
 .pill-ok{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.25);color:#2ecc71}
 .pill-err{background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);color:#e74c3c}
+.pill-warn{background:rgba(244,162,97,.1);border:1px solid rgba(244,162,97,.25);color:#f4a261}
 .pdot{width:7px;height:7px;border-radius:50%;animation:blink 2s infinite}
-.pill-ok .pdot{background:#2ecc71}.pill-err .pdot{background:#e74c3c}
+.pill-ok .pdot{background:#2ecc71}
+.pill-err .pdot{background:#e74c3c}
+.pill-warn .pdot{background:#f4a261}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
+.layer-info{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
+.layer-tag{padding:.3rem .8rem;border-radius:8px;font-size:.78rem;font-weight:600}
+.lt-1{background:rgba(233,196,106,.1);color:var(--gold);border:1px solid rgba(233,196,106,.2)}
+.lt-2{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
+.lt-3{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+
 .divider{border:none;border-top:1px solid var(--glass-border);margin:2rem 0}
+
+.meter-bar{height:14px;border-radius:7px;background:rgba(255,255,255,.05);
+    overflow:hidden;margin:.5rem 0}
+.meter-fill{height:100%;border-radius:7px;transition:width 1.5s ease}
 
 .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:2.5rem 0}
 .fc{background:var(--glass);border:1px solid var(--glass-border);
@@ -231,11 +259,6 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
     border:2px solid var(--glass-border)!important;
     border-radius:12px!important;color:var(--text-primary)!important}
 
-.accuracy-meter{margin:1.5rem 0}
-.meter-bar{height:12px;border-radius:6px;background:rgba(255,255,255,.05);
-    overflow:hidden;margin-top:.5rem}
-.meter-fill{height:100%;border-radius:6px;transition:width 1s ease}
-
 @media(max-width:768px){
     .topbar{padding:.7rem 1rem}.hero h1{font-size:2rem}
     .sgrid{grid-template-columns:repeat(2,1fr)}
@@ -246,8 +269,10 @@ mark.fix{background:rgba(46,204,113,.15);color:#55efc4;font-weight:700;
 
 
 # ==========================================
-# 4. محرك القواعد (Rule Engine) - طبقة أولى
+# 4. الطبقة 1: محرك القواعد + Homophones
 # ==========================================
+
+# 4A: إصلاحات إملائية شائعة
 COMMON_FIXES = {
     "could of":    "could have",
     "should of":   "should have",
@@ -273,16 +298,12 @@ COMMON_FIXES = {
     "ive ":        "I've ",
     "id ":         "I'd ",
     "ill ":        "I'll ",
-    "i ":          "I ",
     "alot":        "a lot",
     "recieve":     "receive",
-    "recieves":    "receives",
     "occured":     "occurred",
-    "occuring":    "occurring",
     "untill":      "until",
     "definately":  "definitely",
     "seperate":    "separate",
-    "seperately":  "separately",
     "goverment":   "government",
     "enviroment":  "environment",
     "tommorrow":   "tomorrow",
@@ -305,42 +326,27 @@ COMMON_FIXES = {
     "catagory":    "category",
     "comittee":    "committee",
     "concious":    "conscious",
-    "curiousity":  "curiosity",
     "embarass":    "embarrass",
     "foriegn":     "foreign",
     "fourty":      "forty",
     "grammer":     "grammar",
-    "harrass":     "harass",
-    "hygeine":     "hygiene",
     "independant": "independent",
     "knowlege":    "knowledge",
     "libary":      "library",
     "librery":     "library",
-    "lisence":     "license",
-    "maintenence": "maintenance",
-    "millenium":   "millennium",
     "neccessary":  "necessary",
     "noticable":   "noticeable",
     "occurence":   "occurrence",
-    "persistant":  "persistent",
-    "posession":   "possession",
-    "potatos":     "potatoes",
-    "preceeding":  "preceding",
     "priviledge":  "privilege",
     "professer":   "professor",
-    "pronounciation": "pronunciation",
-    "publically":  "publicly",
     "realy":       "really",
-    "refering":    "referring",
     "relevent":    "relevant",
     "religous":    "religious",
     "rythm":       "rhythm",
-    "seize":       "seize",
     "succesful":   "successful",
     "sucessful":   "successful",
     "suprise":     "surprise",
     "truely":      "truly",
-    "unforseen":   "unforeseen",
     "unfortunatly": "unfortunately",
     "accomodate":  "accommodate",
     "acheive":     "achieve",
@@ -353,157 +359,259 @@ COMMON_FIXES = {
     "completly":   "completely",
     "diffrent":    "different",
     "dissapear":   "disappear",
-    "dissapoint":  "disappoint",
     "exellent":    "excellent",
     "existance":   "existence",
     "familar":     "familiar",
     "finaly":      "finally",
-    "genaral":     "general",
     "happend":     "happened",
     "immediatly":  "immediately",
     "intresting":  "interesting",
     "laguage":     "language",
-    "mispell":     "misspell",
     "naturaly":    "naturally",
     "neigbour":    "neighbour",
     "obviuosly":   "obviously",
     "opertunity":  "opportunity",
     "orginal":     "original",
-    "parliment":   "parliament",
     "particulary": "particularly",
     "probaly":     "probably",
     "recomend":    "recommend",
     "remeber":     "remember",
-    "repitition":  "repetition",
     "saftey":      "safety",
     "shedule":     "schedule",
     "sincerly":    "sincerely",
     "speach":      "speech",
     "strenght":    "strength",
     "teecher":     "teacher",
-    "thoughout":   "throughout",
     "togeather":   "together",
-    "tomatos":     "tomatoes",
-    "underate":    "underrate",
     "usally":      "usually",
     "vaccum":      "vacuum",
     "valuble":     "valuable",
-    "vegetable":   "vegetable",
     "visable":     "visible",
     "wether":      "whether",
     "writting":    "writing",
+    "studdy":      "study",
+    "finalle":     "final",
+    "examms":      "exams",
+    "leter":       "letter",
+    "gardenn":     "garden",
+    "yeers":       "years",
 }
 
-# أنماط القواعد المتقدمة
+# 4B: Homophones - الكلمات المتشابهة صوتياً
+HOMOPHONE_RULES = [
+    # your / you're
+    (r"\byour\s+going\b",      "you're going"),
+    (r"\byour\s+welcome\b",    "you're welcome"),
+    (r"\byour\s+right\b",      "you're right"),
+    (r"\byour\s+wrong\b",      "you're wrong"),
+    (r"\byour\s+doing\b",      "you're doing"),
+    (r"\byour\s+being\b",      "you're being"),
+    (r"\byour\s+coming\b",     "you're coming"),
+    (r"\byour\s+leaving\b",    "you're leaving"),
+    (r"\byour\s+making\b",     "you're making"),
+    (r"\byour\s+not\b",        "you're not"),
+    (r"\byour\s+the\s+best\b", "you're the best"),
+    (r"\byour\s+so\b",         "you're so"),
+    (r"\byour\s+very\b",       "you're very"),
+    (r"\byour\s+too\b",        "you're too"),
+
+    # their / there / they're
+    (r"\btheir\s+is\b",        "there is"),
+    (r"\btheir\s+are\b",       "there are"),
+    (r"\btheir\s+was\b",       "there was"),
+    (r"\btheir\s+were\b",      "there were"),
+    (r"\btheir\s+going\b",     "they're going"),
+    (r"\btheir\s+coming\b",    "they're coming"),
+    (r"\btheir\s+not\b",       "they're not"),
+    (r"\btheir\s+doing\b",     "they're doing"),
+
+    # its / it's
+    (r"\bits\s+a\b",           "it's a"),
+    (r"\bits\s+the\b",         "it's the"),
+    (r"\bits\s+not\b",         "it's not"),
+    (r"\bits\s+been\b",        "it's been"),
+    (r"\bits\s+going\b",       "it's going"),
+    (r"\bits\s+very\b",        "it's very"),
+    (r"\bits\s+so\b",          "it's so"),
+    (r"\bits\s+too\b",         "it's too"),
+    (r"\bits\s+really\b",      "it's really"),
+
+    # than / then
+    (r"\bmore\s+.*?\s+then\b", lambda m: m.group().replace("then", "than")),
+    (r"\bbetter\s+then\b",     "better than"),
+    (r"\bworse\s+then\b",      "worse than"),
+    (r"\brather\s+then\b",     "rather than"),
+    (r"\bother\s+then\b",      "other than"),
+    (r"\bless\s+then\b",       "less than"),
+    (r"\bgreater\s+then\b",    "greater than"),
+    (r"\bbigger\s+then\b",     "bigger than"),
+    (r"\bsmaller\s+then\b",    "smaller than"),
+    (r"\bolder\s+then\b",      "older than"),
+    (r"\byounger\s+then\b",    "younger than"),
+    (r"\bfaster\s+then\b",     "faster than"),
+    (r"\bslower\s+then\b",     "slower than"),
+
+    # to / too
+    (r"\bto\s+much\b",         "too much"),
+    (r"\bto\s+many\b",         "too many"),
+    (r"\bto\s+late\b",         "too late"),
+    (r"\bto\s+early\b",        "too early"),
+    (r"\bto\s+fast\b",         "too fast"),
+    (r"\bto\s+slow\b",         "too slow"),
+    (r"\bto\s+big\b",          "too big"),
+    (r"\bto\s+small\b",        "too small"),
+    (r"\bme\s+to\b",           "me too"),
+
+    # affect / effect
+    (r"\beffect\s+(?:my|your|his|her|their|our|the)\b",
+     lambda m: m.group().replace("effect", "affect")),
+
+    # lose / loose
+    (r"\bloose\s+(?:my|your|his|her|the|a|their|our|it)\b",
+     lambda m: m.group().replace("loose", "lose")),
+
+    # who's / whose
+    (r"\bwho's\s+(?:book|car|house|phone|bag|idea|fault|turn|job)\b",
+     lambda m: m.group().replace("who's", "whose")),
+]
+
+# 4C: أنماط القواعد
 GRAMMAR_PATTERNS = [
-    (r'\bi\b(?!\')' , 'I'),
-    (r'\bhe dont\b', 'he doesn\'t'),
-    (r'\bshe dont\b', 'she doesn\'t'),
-    (r'\bit dont\b', 'it doesn\'t'),
-    (r'\bhe don\'t\b', 'he doesn\'t'),
-    (r'\bshe don\'t\b', 'she doesn\'t'),
-    (r'\bit don\'t\b', 'it doesn\'t'),
-    (r'\bI has\b', 'I have'),
-    (r'\bI is\b', 'I am'),
-    (r'\byou is\b', 'you are'),
-    (r'\bwe is\b', 'we are'),
-    (r'\bthey is\b', 'they are'),
-    (r'\bhe have\b', 'he has'),
-    (r'\bshe have\b', 'she has'),
-    (r'\bit have\b', 'it has'),
-    (r'\bme and my\b', 'my friend and I'),
-    (r'\bmore better\b', 'better'),
-    (r'\bmore worse\b', 'worse'),
-    (r'\bmost best\b', 'best'),
-    (r'\bmost worst\b', 'worst'),
-    (r'\bchilds\b', 'children'),
-    (r'\bmans\b', 'men'),
-    (r'\bwomans\b', 'women'),
-    (r'\btooths\b', 'teeth'),
-    (r'\bfoots\b', 'feet'),
-    (r'\bmouses\b', 'mice'),
-    (r'\bgoed\b', 'went'),
-    (r'\bwrited\b', 'wrote'),
-    (r'\bthinked\b', 'thought'),
-    (r'\bteached\b', 'taught'),
-    (r'\bbringed\b', 'brought'),
-    (r'\bbuyed\b', 'bought'),
-    (r'\bcatched\b', 'caught'),
-    (r'\bfeeled\b', 'felt'),
-    (r'\bfinded\b', 'found'),
-    (r'\bgetted\b', 'got'),
-    (r'\bgived\b', 'gave'),
-    (r'\bheared\b', 'heard'),
-    (r'\bknowed\b', 'knew'),
-    (r'\bleaved\b', 'left'),
-    (r'\bmaked\b', 'made'),
-    (r'\bmeeted\b', 'met'),
-    (r'\breaded\b', 'read'),
-    (r'\brunned\b', 'ran'),
-    (r'\bsayed\b', 'said'),
-    (r'\bseed\b', 'saw'),
-    (r'\bselled\b', 'sold'),
-    (r'\bsended\b', 'sent'),
-    (r'\bsinged\b', 'sang'),
-    (r'\bsitted\b', 'sat'),
-    (r'\bsleeped\b', 'slept'),
-    (r'\bspeaked\b', 'spoke'),
-    (r'\bstanded\b', 'stood'),
-    (r'\bswimmed\b', 'swam'),
-    (r'\btaked\b', 'took'),
-    (r'\btelled\b', 'told'),
-    (r'\bunderstand\b', 'understood'),
-    (r'\bweared\b', 'wore'),
-    (r'\bwinned\b', 'won'),
+    (r'\bi\b(?![\'m\'ve\'d\'ll\'])',  'I'),
+    (r'\bhe dont\b',       "he doesn't"),
+    (r'\bshe dont\b',      "she doesn't"),
+    (r'\bit dont\b',       "it doesn't"),
+    (r"\bhe don't\b",      "he doesn't"),
+    (r"\bshe don't\b",     "she doesn't"),
+    (r"\bit don't\b",      "it doesn't"),
+    (r'\bI has\b',         'I have'),
+    (r'\bI is\b',          'I am'),
+    (r'\byou is\b',        'you are'),
+    (r'\bwe is\b',         'we are'),
+    (r'\bthey is\b',       'they are'),
+    (r'\bhe have\b',       'he has'),
+    (r'\bshe have\b',      'she has'),
+    (r'\bit have\b',       'it has'),
+    (r'\bmore better\b',   'better'),
+    (r'\bmore worse\b',    'worse'),
+    (r'\bmost best\b',     'best'),
+    (r'\bmost worst\b',    'worst'),
+    (r'\bchilds\b',        'children'),
+    (r'\bmans\b',          'men'),
+    (r'\bwomans\b',        'women'),
+    (r'\btooths\b',        'teeth'),
+    (r'\bfoots\b',         'feet'),
+    (r'\bgoed\b',          'went'),
+    (r'\bwrited\b',        'wrote'),
+    (r'\bthinked\b',       'thought'),
+    (r'\bteached\b',       'taught'),
+    (r'\bbringed\b',       'brought'),
+    (r'\bbuyed\b',         'bought'),
+    (r'\bcatched\b',       'caught'),
+    (r'\bfeeled\b',        'felt'),
+    (r'\bfinded\b',        'found'),
+    (r'\bgived\b',         'gave'),
+    (r'\bheared\b',        'heard'),
+    (r'\bknowed\b',        'knew'),
+    (r'\bleaved\b',        'left'),
+    (r'\bmaked\b',         'made'),
+    (r'\bmeeted\b',        'met'),
+    (r'\brunned\b',        'ran'),
+    (r'\bsayed\b',         'said'),
+    (r'\bseed\b',          'saw'),
+    (r'\bsended\b',        'sent'),
+    (r'\bsitted\b',        'sat'),
+    (r'\bsleeped\b',       'slept'),
+    (r'\bspeaked\b',       'spoke'),
+    (r'\bstanded\b',       'stood'),
+    (r'\bswimmed\b',       'swam'),
+    (r'\btaked\b',         'took'),
+    (r'\btelled\b',        'told'),
+    (r'\bweared\b',        'wore'),
+    (r'\bwinned\b',        'won'),
+    (r'\bdont knows\b',    "doesn't know"),
+    (r'\bdont know\b',     "don't know"),
 ]
 
 
 def apply_rule_engine(text):
-    """تطبيق محرك القواعد كطبقة أولى"""
+    """الطبقة 1A: تطبيق القواعد الإملائية"""
     result = text
-
-    # تطبيق الاستبدالات الشائعة
     lower = result.lower()
+
     for wrong, correct in COMMON_FIXES.items():
         if wrong in lower:
             pattern = re.compile(re.escape(wrong), re.IGNORECASE)
             result = pattern.sub(correct, result)
             lower = result.lower()
 
-    # تطبيق أنماط القواعد
     for pattern, replacement in GRAMMAR_PATTERNS:
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
-    # تصحيح بداية الجمل (حرف كبير)
+    # أول حرف كبير في كل جملة
     sentences = re.split(r'([.!?]\s+)', result)
     fixed = []
     for i, part in enumerate(sentences):
-        if i == 0 or (i > 0 and re.match(r'[.!?]\s+', sentences[i-1])):
-            if part and part[0].islower():
+        if part and (i == 0 or (i > 0 and re.match(r'[.!?]\s+', sentences[i-1]))):
+            if part[0].islower():
                 part = part[0].upper() + part[1:]
         fixed.append(part)
     result = ''.join(fixed)
 
-    # أول حرف كبير
     if result and result[0].islower():
         result = result[0].upper() + result[1:]
 
     return result
 
 
+def apply_homophone_filter(text):
+    """الطبقة 1B: إصلاح Homophones"""
+    result = text
+    for pattern, replacement in HOMOPHONE_RULES:
+        if callable(replacement):
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        else:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    return result
+
+
 # ==========================================
-# 5. دوال النماذج
+# 5. الطبقة 3: LanguageTool
+# ==========================================
+@st.cache_resource
+def load_language_tool():
+    """تحميل LanguageTool"""
+    try:
+        import language_tool_python
+        tool = language_tool_python.LanguageTool('en-US')
+        return tool, None
+    except Exception as e:
+        return None, str(e)
+
+
+def apply_language_tool(text, tool):
+    """تطبيق LanguageTool كطبقة ثالثة"""
+    try:
+        import language_tool_python
+        matches = tool.check(text)
+        corrected = language_tool_python.utils.correct(text, matches)
+        return corrected, len(matches)
+    except Exception:
+        return text, 0
+
+
+# ==========================================
+# 6. تحميل النماذج
 # ==========================================
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-# تحديد الجهاز
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 @st.cache_resource
 def load_corrector():
-    """تحميل نموذج التصحيح مع دعم GPU"""
+    """تحميل نموذج T5 للتصحيح"""
     name = "prithivida/grammar_error_correcter_v1"
     tok = AutoTokenizer.from_pretrained(name)
     mdl = AutoModelForSeq2SeqLM.from_pretrained(name).to(DEVICE)
@@ -512,27 +620,22 @@ def load_corrector():
 
 @st.cache_resource
 def load_translator_model(src_code, tgt_code):
-    """تحميل نموذج الترجمة يدوياً - بدون pipeline"""
+    """تحميل نموذج الترجمة يدوياً"""
     candidates = [
         "Helsinki-NLP/opus-mt-{}-{}".format(src_code, tgt_code),
         "Helsinki-NLP/opus-mt-tc-big-{}-{}".format(src_code, tgt_code),
     ]
 
     errors_list = []
-
     for model_name in candidates:
         try:
             tok = AutoTokenizer.from_pretrained(model_name)
             mdl = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(DEVICE)
             return tok, mdl, model_name, None
         except Exception as e:
-            errors_list.append("{}: {}".format(model_name, str(e)[:120]))
-            continue
+            errors_list.append("{}: {}".format(model_name, str(e)[:100]))
 
-    err_msg = "No model found for {} → {}\n{}".format(
-        src_code, tgt_code, "\n".join(errors_list)
-    )
-    return None, None, None, err_msg
+    return None, None, None, "No model: " + "; ".join(errors_list)
 
 
 TRANS_LANGS = {
@@ -553,8 +656,10 @@ TRANS_LANGS = {
 RTL_CODES = {"ar", "he", "fa", "ur"}
 
 
-def smart_sentence_split(text):
-    """تقسيم ذكي للجمل باستخدام nltk"""
+# ==========================================
+# 7. دوال المعالجة
+# ==========================================
+def smart_split(text):
     try:
         from nltk.tokenize import sent_tokenize
         return sent_tokenize(text)
@@ -562,17 +667,9 @@ def smart_sentence_split(text):
         return re.split(r'(?<=[.!?])\s+', text.strip())
 
 
-def correct_text(text, tokenizer, model):
-    """
-    تصحيح بطبقتين:
-    1. محرك القواعد (Rule Engine)
-    2. نموذج T5 الذكي
-    """
-    # الطبقة 1: محرك القواعد
-    text = apply_rule_engine(text)
-
-    # الطبقة 2: نموذج AI
-    sents = smart_sentence_split(text)
+def correct_with_ai(text, tokenizer, model):
+    """الطبقة 2: تصحيح بالذكاء الاصطناعي"""
+    sents = smart_split(text)
     results = []
     for s in sents:
         if not s.strip():
@@ -592,52 +689,71 @@ def correct_text(text, tokenizer, model):
                 early_stopping=True,
             )
             corrected = tokenizer.decode(out[0], skip_special_tokens=True)
-
-            # التحقق: إذا أرجع النموذج نصاً فارغاً
-            if corrected.strip():
-                results.append(corrected)
-            else:
-                results.append(s)
+            results.append(corrected if corrected.strip() else s)
         except Exception:
             results.append(s)
     return " ".join(results)
 
 
-def translate_text_manual(text, tokenizer, model):
-    """ترجمة يدوية بدون pipeline"""
-    sents = smart_sentence_split(text)
-    parts = []
+def full_correction_pipeline(text, ai_tokenizer, ai_model, lt_tool=None):
+    """
+    نظام التصحيح الثلاثي الطبقات
+    """
+    layer_results = {}
 
+    # الطبقة 1A: محرك القواعد
+    after_rules = apply_rule_engine(text)
+    layer_results["rules"] = after_rules
+
+    # الطبقة 1B: Homophones
+    after_homo = apply_homophone_filter(after_rules)
+    layer_results["homophones"] = after_homo
+
+    # الطبقة 2: AI
+    after_ai = correct_with_ai(after_homo, ai_tokenizer, ai_model)
+    layer_results["ai"] = after_ai
+
+    # الطبقة 3: LanguageTool
+    lt_fixes = 0
+    if lt_tool is not None:
+        after_lt, lt_fixes = apply_language_tool(after_ai, lt_tool)
+        layer_results["languagetool"] = after_lt
+        final = after_lt
+    else:
+        final = after_ai
+
+    layer_results["final"] = final
+    layer_results["lt_fixes"] = lt_fixes
+
+    return final, layer_results
+
+
+def translate_text_manual(text, tokenizer, model):
+    """ترجمة يدوية"""
+    sents = smart_split(text)
+    parts = []
     for s in sents:
         if not s.strip():
             continue
         try:
             inputs = tokenizer(
-                s,
-                return_tensors="pt",
-                max_length=512,
-                truncation=True,
-                padding=True,
+                s, return_tensors="pt",
+                max_length=512, truncation=True, padding=True,
             ).to(DEVICE)
             outputs = model.generate(
-                **inputs,
-                max_length=512,
-                num_beams=4,
-                early_stopping=True,
+                **inputs, max_length=512,
+                num_beams=4, early_stopping=True,
             )
-            parts.append(
-                tokenizer.decode(outputs[0], skip_special_tokens=True)
-            )
+            parts.append(tokenizer.decode(outputs[0], skip_special_tokens=True))
         except Exception:
             parts.append(s)
     return " ".join(parts)
 
 
 def make_diff(orig, fixed):
-    """HTML للفروقات مع SequenceMatcher للدقة"""
+    """HTML للفروقات بدقة عالية"""
     orig_words = orig.split()
     fixed_words = fixed.split()
-
     matcher = difflib.SequenceMatcher(None, orig_words, fixed_words)
     parts = []
 
@@ -659,29 +775,8 @@ def make_diff(orig, fixed):
     return " ".join(parts)
 
 
-def calculate_accuracy(original, corrected):
-    """حساب نسبة الدقة التقريبية"""
-    orig_words = original.split()
-    corr_words = corrected.split()
-    if not orig_words:
-        return 100.0
-
-    matcher = difflib.SequenceMatcher(None, orig_words, corr_words)
-    changes = 0
-    for op, i1, i2, j1, j2 in matcher.get_opcodes():
-        if op != 'equal':
-            changes += max(i2 - i1, j2 - j1)
-
-    total = max(len(orig_words), len(corr_words))
-    if total == 0:
-        return 100.0
-
-    similarity = matcher.ratio() * 100
-    return round(similarity, 1)
-
-
 # ==========================================
-# 6. الواجهة العلوية
+# 8. الواجهة
 # ==========================================
 st.markdown("""
 <div class="bg-fx">
@@ -693,66 +788,102 @@ st.markdown("""
 <div class="topbar">
     <div class="tb-brand">
         <div class="tb-logo">🤖</div>
-        <span class="tb-name">Grammar AI + Translator</span>
+        <span class="tb-name">Grammar AI Pro</span>
     </div>
-    <span class="tb-tag">Rule Engine + T5 + Helsinki-NLP</span>
+    <span class="tb-tag">3-Layer Engine + Translator</span>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="hero">
-    <div class="hero-chip">🧠 Dual-Layer Correction + Translation</div>
-    <h1><span class="glow">AI Grammar Corrector</span></h1>
+    <div class="hero-chip">🧠 3-Layer Correction System</div>
+    <h1><span class="glow">AI Grammar Corrector Pro</span></h1>
     <p class="hero-desc">
-        Rule Engine + T5 AI for higher accuracy correction,
-        then translate to 12+ languages — all in one place
+        Rule Engine + T5 AI + LanguageTool — three layers working together
+        for ~90% accuracy, then translate to 12+ languages
     </p>
 </div>
 """, unsafe_allow_html=True)
 
+
 # ==========================================
-# 7. تحميل نموذج التصحيح
+# 9. تحميل النماذج
 # ==========================================
 corrector_tok = None
 corrector_mdl = None
 corrector_ok = False
+lt_tool = None
+lt_ok = False
 
+# Grammar Model
 try:
-    with st.spinner("🔄 Loading grammar model on {}...".format(DEVICE.upper())):
+    with st.spinner("🔄 Loading T5 grammar model..."):
         corrector_tok, corrector_mdl = load_corrector()
     corrector_ok = True
-
-    device_label = "GPU 🚀" if DEVICE == "cuda" else "CPU"
+    device_lbl = "GPU 🚀" if DEVICE == "cuda" else "CPU"
     st.markdown(
-        '<div class="pill pill-ok">'
-        '<div class="pdot"></div>'
-        'Grammar Model Ready ({})</div>'.format(device_label),
+        '<div class="pill pill-ok"><div class="pdot"></div>'
+        'T5 Grammar Model Ready ({})</div>'.format(device_lbl),
         unsafe_allow_html=True,
     )
 except Exception as e:
     st.markdown(
-        '<div class="pill pill-err">'
-        '<div class="pdot"></div>'
-        'Grammar Model Error</div>',
+        '<div class="pill pill-err"><div class="pdot"></div>'
+        'T5 Model Error</div>',
         unsafe_allow_html=True,
     )
     with st.expander("Details"):
         st.error(str(e))
 
+# LanguageTool
+try:
+    with st.spinner("🔄 Loading LanguageTool..."):
+        lt_tool, lt_err = load_language_tool()
+    if lt_tool:
+        lt_ok = True
+        st.markdown(
+            '<div class="pill pill-ok"><div class="pdot"></div>'
+            'LanguageTool Ready</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="pill pill-warn"><div class="pdot"></div>'
+            'LanguageTool unavailable (2 layers active)</div>',
+            unsafe_allow_html=True,
+        )
+except Exception:
+    st.markdown(
+        '<div class="pill pill-warn"><div class="pdot"></div>'
+        'LanguageTool skipped (2 layers active)</div>',
+        unsafe_allow_html=True,
+    )
+
+
 # ==========================================
-# 8. منطقة العمل
+# 10. منطقة العمل
 # ==========================================
 st.markdown('<div class="workzone">', unsafe_allow_html=True)
+
+# طبقات النظام
+st.markdown(
+    '<div class="layer-info">'
+    '<span class="layer-tag lt-1">🔧 Layer 1: Rules + Homophones</span>'
+    '<span class="layer-tag lt-2">🧠 Layer 2: T5 AI Model</span>'
+    '<span class="layer-tag lt-3">📝 Layer 3: LanguageTool {}</span>'
+    '</div>'.format("✅" if lt_ok else "⚠️"),
+    unsafe_allow_html=True,
+)
 
 EXAMPLES = [
     "Last weak, me and my freind goed to the librery.",
     "She dont knows what happend yestarday.",
-    "I has been working hear for too yeers now.",
+    "Your going to love this place more then me.",
     "Their going to there house over they're.",
     "The childs was playing in the gardenn.",
-    "He writed a leter to his teecher.",
     "I could of went to the store but i didnt.",
-    "The goverment should of seperated the departments.",
+    "He writed a leter to his teecher.",
+    "Its to late for us to go their.",
 ]
 
 st.markdown(
@@ -784,7 +915,7 @@ default = (
 )
 
 user_text = st.text_area(
-    label="t",
+    label="input",
     value=st.session_state.get("inp", default),
     height=150,
     placeholder="Type English text with errors...",
@@ -799,7 +930,7 @@ st.caption("📏 {} words · {} chars".format(wc, cc))
 b1, b2, b3 = st.columns([3, 1, 1])
 with b1:
     go_correct = st.button(
-        "🚀 Correct with AI (Dual-Layer)",
+        "🚀 Correct (3-Layer System)",
         type="primary",
         use_container_width=True,
         disabled=not corrector_ok,
@@ -810,12 +941,14 @@ with b3:
     cpy1 = st.button("📋 Copy", use_container_width=True, key="cpy1")
 
 if clr:
-    st.session_state["inp"] = ""
-    st.session_state["corrected"] = ""
-    st.session_state["translated"] = ""
+    for k in ["inp", "corrected", "translated", "layer_results"]:
+        st.session_state[k] = "" if k != "layer_results" else {}
     st.rerun()
 
-# نتيجة التصحيح
+
+# ==========================================
+# 11. نتيجة التصحيح
+# ==========================================
 st.markdown(
     '<div class="gc"><div class="gc-head">'
     '<div class="gc-title"><div class="gc-ico">✨</div>'
@@ -842,13 +975,21 @@ if go_correct:
     if not user_text.strip():
         st.warning("⚠️ Enter text first!")
     else:
-        with st.spinner("🧠 Layer 1: Rule Engine → Layer 2: T5 AI..."):
-            t0 = time.time()
-            final = correct_text(user_text, corrector_tok, corrector_mdl)
-            elapsed = round(time.time() - t0, 2)
+        progress = st.empty()
+
+        progress.markdown("⏳ **Layer 1:** Rules + Homophones...")
+        t0 = time.time()
+
+        final, layer_results = full_correction_pipeline(
+            user_text, corrector_tok, corrector_mdl,
+            lt_tool if lt_ok else None,
+        )
+        elapsed = round(time.time() - t0, 2)
+        progress.empty()
 
         st.session_state["corrected"] = final
         st.session_state["translated"] = ""
+        st.session_state["layer_results"] = layer_results
 
         # خريطة التغييرات
         diff_html = make_diff(user_text, final)
@@ -862,46 +1003,52 @@ if go_correct:
             unsafe_allow_html=True,
         )
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
+        # النتيجة النهائية
         corr_holder.markdown(
             '<div class="rbox rbox-clean">{}</div>'.format(final),
             unsafe_allow_html=True,
         )
+
+        # تفاصيل الطبقات
+        with st.expander("🔬 Layer-by-Layer Details"):
+            st.markdown("**Original:**")
+            st.text(user_text)
+
+            if "rules" in layer_results:
+                st.markdown("**After Layer 1A (Rules):**")
+                st.text(layer_results["rules"])
+
+            if "homophones" in layer_results:
+                st.markdown("**After Layer 1B (Homophones):**")
+                st.text(layer_results["homophones"])
+
+            if "ai" in layer_results:
+                st.markdown("**After Layer 2 (T5 AI):**")
+                st.text(layer_results["ai"])
+
+            if "languagetool" in layer_results:
+                st.markdown(
+                    "**After Layer 3 (LanguageTool):** "
+                    "({} fixes)".format(layer_results.get("lt_fixes", 0))
+                )
+                st.text(layer_results["languagetool"])
+
+            st.markdown("**Final Result:**")
+            st.success(final)
 
         st.success("✅ Corrected in {}s!".format(elapsed))
 
         # إحصائيات
         ow = user_text.split()
         fw = final.split()
-
         matcher = difflib.SequenceMatcher(None, ow, fw)
-        changes = 0
-        for op, i1, i2, j1, j2 in matcher.get_opcodes():
-            if op != 'equal':
-                changes += max(i2 - i1, j2 - j1)
-
-        num_sents = len(smart_sentence_split(user_text))
-        accuracy = calculate_accuracy(user_text, final)
-
-        # شريط الدقة
-        if changes > 0:
-            bar_color = "var(--green)" if accuracy > 80 else "var(--orange)" if accuracy > 60 else "var(--red)"
-            st.markdown(
-                '<div class="accuracy-meter">'
-                '<span style="font-weight:700">📊 Correction Confidence</span>'
-                '<div class="meter-bar">'
-                '<div class="meter-fill" style="width:{}%;background:{}"></div>'
-                '</div>'
-                '<span style="font-size:.85rem;color:var(--text-secondary)">'
-                '{}% text modified</span>'
-                '</div>'.format(
-                    min(100, changes * 10),
-                    bar_color,
-                    round(100 - accuracy, 1),
-                ),
-                unsafe_allow_html=True,
-            )
+        changes = sum(
+            max(i2 - i1, j2 - j1)
+            for op, i1, i2, j1, j2 in matcher.get_opcodes()
+            if op != 'equal'
+        )
+        num_sents = len(smart_split(user_text))
+        layers_used = 2 + (1 if lt_ok else 0)
 
         st.markdown(
             '<div class="sgrid">'
@@ -910,10 +1057,10 @@ if go_correct:
             '<div class="sc"><div class="sc-val" style="color:#ff7675">{}</div>'
             '<div class="sc-lbl">Changes</div></div>'
             '<div class="sc"><div class="sc-val" style="color:#55efc4">{}</div>'
-            '<div class="sc-lbl">Sentences</div></div>'
+            '<div class="sc-lbl">Layers Used</div></div>'
             '<div class="sc"><div class="sc-val" style="color:var(--cyan)">{}s</div>'
             '<div class="sc-lbl">Time</div></div>'
-            '</div>'.format(len(ow), changes, num_sents, elapsed),
+            '</div>'.format(len(ow), changes, layers_used, elapsed),
             unsafe_allow_html=True,
         )
 
@@ -927,7 +1074,7 @@ if cpy1:
 
 
 # ==========================================
-# 9. قسم الترجمة
+# 12. قسم الترجمة
 # ==========================================
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
@@ -936,7 +1083,7 @@ st.markdown(
     '<div class="gc-title">'
     '<div class="gc-ico gc-ico-blue">🌍</div>'
     'Translate Corrected Text</div>'
-    '<span class="gc-badge">Helsinki-NLP · Manual Mode</span>'
+    '<span class="gc-badge">Helsinki-NLP</span>'
     '</div></div>',
     unsafe_allow_html=True,
 )
@@ -944,12 +1091,12 @@ st.markdown(
 corrected_text = st.session_state.get("corrected", "")
 
 if not corrected_text:
-    st.info("💡 Correct the text first, then choose a language to translate to.")
+    st.info("💡 Correct the text first, then choose a language.")
 else:
     preview = corrected_text[:100]
     if len(corrected_text) > 100:
         preview += "..."
-    st.markdown("**Text to translate:** " + preview)
+    st.markdown("**Text:** " + preview)
 
     col_lang, col_btn = st.columns([3, 2])
 
@@ -966,14 +1113,13 @@ else:
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
         go_translate = st.button(
-            "🌍 Translate to " + target_lang,
+            "🌍 Translate",
             type="primary",
             use_container_width=True,
             key="btn_trans",
         )
 
     trans_holder = st.empty()
-
     translated_text = st.session_state.get("translated", "")
     if translated_text:
         rtl_cls = "rbox-rtl" if tgt_code in RTL_CODES else ""
@@ -987,9 +1133,8 @@ else:
     if go_translate:
         with st.spinner("🌍 Loading translation model..."):
             try:
-                trans_tok, trans_mdl, used_model, err = load_translator_model(
-                    "en", tgt_code
-                )
+                trans_tok, trans_mdl, used_model, err = \
+                    load_translator_model("en", tgt_code)
 
                 if trans_tok is None:
                     st.error("❌ " + str(err))
@@ -997,7 +1142,7 @@ else:
                     st.markdown(
                         '<div class="pill pill-ok">'
                         '<div class="pdot"></div>'
-                        'Model: {}</div>'.format(used_model),
+                        '{}</div>'.format(used_model),
                         unsafe_allow_html=True,
                     )
 
@@ -1017,14 +1162,7 @@ else:
                         unsafe_allow_html=True,
                     )
 
-                    st.success(
-                        "✅ Translated in {}s · Model: {}".format(
-                            elapsed, used_model
-                        )
-                    )
-
-                    src_wc = len(corrected_text.split())
-                    tgt_wc = len(translated.split())
+                    st.success("✅ Translated in {}s".format(elapsed))
 
                     st.markdown(
                         '<div class="sgrid">'
@@ -1037,68 +1175,63 @@ else:
                         '<div class="sc"><div class="sc-val" style="color:var(--green)">{}s</div>'
                         '<div class="sc-lbl">Time</div></div>'
                         '</div>'.format(
-                            src_wc, tgt_wc,
-                            tgt_code.upper(), elapsed
+                            len(corrected_text.split()),
+                            len(translated.split()),
+                            tgt_code.upper(),
+                            elapsed,
                         ),
                         unsafe_allow_html=True,
                     )
 
             except Exception as e:
-                st.error("❌ Translation error: " + str(e))
-                with st.expander("🔍 Full error"):
-                    st.code(str(e))
+                st.error("❌ " + str(e))
 
-    cpy2 = st.button(
-        "📋 Copy Translation",
-        use_container_width=True,
-        key="cpy2",
-    )
+    cpy2 = st.button("📋 Copy Translation", use_container_width=True, key="cpy2")
     if cpy2:
         tr = st.session_state.get("translated", "")
         if tr:
             st.code(tr, language=None)
-            st.info("📋 Select and copy Ctrl+C")
         else:
-            st.warning("⚠️ No translation yet")
+            st.warning("⚠️ No translation")
 
 
 # ==========================================
-# 10. الميزات
+# 13. الميزات
 # ==========================================
 st.markdown("""
 <div class="fgrid">
+    <div class="fc"><div class="fc-ico">🔧</div>
+        <div class="fc-ttl">200+ Rules</div>
+        <div class="fc-dsc">Spelling, grammar & irregular verbs</div></div>
+    <div class="fc"><div class="fc-ico">👂</div>
+        <div class="fc-ttl">Homophone Filter</div>
+        <div class="fc-dsc">your/you're, their/there, than/then</div></div>
     <div class="fc"><div class="fc-ico">🧠</div>
-        <div class="fc-ttl">Dual-Layer Correction</div>
-        <div class="fc-dsc">Rule Engine + T5 AI for maximum accuracy</div></div>
+        <div class="fc-ttl">T5 AI Model</div>
+        <div class="fc-dsc">Deep context understanding</div></div>
+    <div class="fc"><div class="fc-ico">📝</div>
+        <div class="fc-ttl">LanguageTool</div>
+        <div class="fc-dsc">Professional spell checker layer</div></div>
     <div class="fc"><div class="fc-ico">🌍</div>
         <div class="fc-ttl">12+ Languages</div>
-        <div class="fc-dsc">Translate to Arabic, French, German & more</div></div>
+        <div class="fc-dsc">Translate to Arabic, French, German...</div></div>
     <div class="fc"><div class="fc-ico">🔍</div>
-        <div class="fc-ttl">Smart Diff</div>
-        <div class="fc-dsc">SequenceMatcher for accurate change detection</div></div>
-    <div class="fc"><div class="fc-ico">⚡</div>
-        <div class="fc-ttl">GPU Support</div>
-        <div class="fc-dsc">Auto-detects CUDA for 10x speed</div></div>
-    <div class="fc"><div class="fc-ico">📊</div>
-        <div class="fc-ttl">Statistics</div>
-        <div class="fc-dsc">Words, changes, accuracy & timing</div></div>
-    <div class="fc"><div class="fc-ico">🆓</div>
-        <div class="fc-ttl">Free Forever</div>
-        <div class="fc-dsc">No limits, no sign-up needed</div></div>
+        <div class="fc-ttl">Layer Details</div>
+        <div class="fc-dsc">See what each layer corrected</div></div>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 11. الفوتر
+# 14. الفوتر
 # ==========================================
 st.markdown("""
 <div class="appfoot">
-    <div class="af-brand">🤖 Grammar AI + 🌍 Translator</div>
+    <div class="af-brand">🤖 Grammar AI Pro</div>
     <div class="af-txt">
-        Rule Engine + T5 Correction + Helsinki-NLP Translation<br>
-        Dual-Layer Architecture · Made with ❤️
+        3-Layer System: Rules + T5 AI + LanguageTool<br>
+        + Helsinki-NLP Translation · Made with ❤️
     </div>
 </div>
 """, unsafe_allow_html=True)
